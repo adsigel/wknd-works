@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Bar } from 'react-chartjs-2'; // Still using Bar for the bar charts
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend } from 'chart.js'; // Import PointElement
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, LineController } from 'chart.js'; // Import PointElement and LineController
 import { format } from 'date-fns';
 
 ChartJS.register(
@@ -12,7 +12,8 @@ ChartJS.register(
   PointElement, // Register PointElement for line charts
   Title,
   Tooltip,
-  Legend
+  Legend,
+  LineController
 );
 
 const months = [
@@ -220,6 +221,7 @@ const SalesChart = () => {
         borderColor: 'rgba(153, 102, 255, 1)',
         borderWidth: 1,
         type: 'line',
+        fill: false
       },
       {
         label: 'Sales Goal',
@@ -228,6 +230,7 @@ const SalesChart = () => {
         borderColor: 'rgba(255, 159, 64, 1)',
         borderWidth: 1,
         type: 'line',
+        fill: false
       },
     ],
   };
