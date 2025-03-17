@@ -21,7 +21,8 @@ app.use(limiter);
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   'http://localhost:3000',
-  'https://sales-dashboard-frontend.onrender.com'  // Add your frontend URL here
+  'https://sales-dashboard-frontend.onrender.com',
+  'https://wknd-works.onrender.com'  // Add your frontend URL here
 ].filter(Boolean); // Remove any undefined values
 
 app.use(cors({
