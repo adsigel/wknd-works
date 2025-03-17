@@ -52,8 +52,14 @@ app.get('/test', (req, res) => {
 // Middleware to parse JSON in request body (if needed)
 app.use(express.json());
 
-// Store the sales goal in memory (you might want to persist this in a database later)
-let currentSalesGoal = 10000;
+// Store the sales goals in memory (you might want to persist this in a database later)
+const salesGoals = new Map();
+
+// Helper function to get the key for a month/year combination
+const getGoalKey = (year, month) => `${year}-${month}`;
+
+// Default goal if none is set for a month
+const DEFAULT_GOAL = 10000;
 
 // API endpoint to get sales data
 app.get('/api/sales/:month', async (req, res) => {
@@ -66,11 +72,16 @@ app.get('/api/sales/:month', async (req, res) => {
         SHOPIFY_SHOP_NAME: process.env.SHOPIFY_SHOP_NAME ? 'Set' : 'Not set',
         SHOPIFY_ACCESS_TOKEN: process.env.SHOPIFY_ACCESS_TOKEN ? 'Set' : 'Not set'
       });
-      const salesData = await calculateCumulativeSales(year, month, currentSalesGoal);
+      
+      // Get the goal for this month/year, or use default
+      const goalKey = getGoalKey(year, month);
+      const monthGoal = salesGoals.get(goalKey) || DEFAULT_GOAL;
+      
+      const salesData = await calculateCumulativeSales(year, month, monthGoal);
       const response = {
         dailySales: salesData.map(d => d.dailySales),
         dates: salesData.map(d => d.date),
-        salesGoal: currentSalesGoal,
+        salesGoal: monthGoal,
         projectedSales: salesData.map(d => d.cumulativeProjectedDailySales)
       };
       console.log('Sending response:', response);
@@ -94,17 +105,22 @@ app.get('/api/sales/:month', async (req, res) => {
 app.post('/api/sales/goal', async (req, res) => {
     try {
       console.log('Received goal update request:', req.body);
-      const { goal } = req.body;
-      console.log('Parsed goal value:', goal);
+      const { goal, month, year } = req.body;
+      console.log('Parsed values:', { goal, month, year });
       
       if (typeof goal !== 'number' || isNaN(goal)) {
         console.log('Invalid goal value received:', goal);
         return res.status(400).json({ error: 'Invalid sales goal' });
       }
       
-      currentSalesGoal = goal;
-      console.log('Updated sales goal to:', currentSalesGoal);
-      res.json({ success: true, newGoal: currentSalesGoal });
+      // Use provided month/year or current month/year
+      const targetMonth = month || new Date().getMonth() + 1;
+      const targetYear = year || new Date().getFullYear();
+      const goalKey = getGoalKey(targetYear, targetMonth);
+      
+      salesGoals.set(goalKey, goal);
+      console.log('Updated sales goal for', goalKey, 'to:', goal);
+      res.json({ success: true, newGoal: goal });
     } catch (error) {
       console.error('Error updating sales goal:', error);
       res.status(500).json({ error: 'Failed to update sales goal' });
@@ -113,7 +129,11 @@ app.post('/api/sales/goal', async (req, res) => {
 
 // API endpoint to get current sales goal
 app.get('/api/sales/goal', (req, res) => {
-    res.json({ goal: currentSalesGoal });
+    const month = parseInt(req.query.month) || new Date().getMonth() + 1;
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const goalKey = getGoalKey(year, month);
+    const goal = salesGoals.get(goalKey) || DEFAULT_GOAL;
+    res.json({ goal });
   });
 
 // // API endpoint to get sales report (optional, you can keep it if needed)

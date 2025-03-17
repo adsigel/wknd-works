@@ -34,7 +34,8 @@ const months = [
 
 const SalesChart = () => {
   
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1); // Default to current month
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   
   const [dailySales, setDailySales] = useState([]);
   const [dates, setDates] = useState([]);
@@ -45,7 +46,7 @@ const SalesChart = () => {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchSalesData = async (month) => {
+  const fetchSalesData = async (month, year) => {
     setLoading(true);
     setError(null);
     const url = `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/sales/${month}`;
@@ -81,7 +82,9 @@ const SalesChart = () => {
     try {
       console.log('Sending new goal:', newGoal);
       const response = await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/sales/goal`, { 
-        goal: Number(newGoal)
+        goal: Number(newGoal),
+        month: selectedMonth,
+        year: selectedYear
       });
       console.log('Server response:', response.data);
       
@@ -89,7 +92,7 @@ const SalesChart = () => {
         setSalesGoal(newGoal);
         setIsEditingGoal(false);
         // Refresh the data with the new goal
-        fetchSalesData(selectedMonth);
+        fetchSalesData(selectedMonth, selectedYear);
       } else {
         console.error('Failed to update goal:', response.data.error);
       }
@@ -109,11 +112,11 @@ const SalesChart = () => {
     }
   };
 
-  // Call fetchSalesData when the user selects a different month
+  // Call fetchSalesData when the user selects a different month or year
   useEffect(() => {
-    console.log('useEffect triggered with month:', selectedMonth);
-    fetchSalesData(selectedMonth);
-  }, [selectedMonth]);
+    console.log('useEffect triggered with month:', selectedMonth, 'year:', selectedYear);
+    fetchSalesData(selectedMonth, selectedYear);
+  }, [selectedMonth, selectedYear]);
   
   if (loading) {
     return <div>Loading...</div>;
@@ -168,6 +171,14 @@ const SalesChart = () => {
         },
       },
     },
+    datasets: {
+      bar: {
+        hidden: false // Ensure bar charts are visible by default
+      },
+      line: {
+        hidden: false // Ensure line charts are visible by default
+      }
+    }
   };
 
   const generateDaysArray = (year, month) => {
@@ -256,6 +267,13 @@ const SalesChart = () => {
           ))}
         </select>
 
+        <label style={{ marginLeft: '20px' }}>Year: </label>
+        <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}>
+          {[2024, 2025].map((year) => (
+            <option key={year} value={year}>{year}</option>
+          ))}
+        </select>
+
         <div style={{ marginLeft: '20px' }}>
           {isEditingGoal ? (
             <form onSubmit={handleGoalSubmit} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
@@ -282,7 +300,7 @@ const SalesChart = () => {
         </div>
       </div>
 
-      <h2>Sales for {months.find(m => m.value === selectedMonth)?.label}</h2>
+      <h2>Sales for {months.find(m => m.value === selectedMonth)?.label} {selectedYear}</h2>
       <Bar data={salesData} options={options} />
     </div>
   );
