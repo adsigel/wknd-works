@@ -41,11 +41,19 @@ const SalesChart = () => {
   const [projectedSales, setProjectedSales] = useState([]);
   const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [tempGoal, setTempGoal] = useState('');
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   const fetchSalesData = async (month) => {
+    setLoading(true);
+    setError(null);
     const url = `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/sales/${month}`;
     try {
       console.log('Making request to:', url);
+      console.log('Environment variables:', {
+        REACT_APP_API_URL: process.env.REACT_APP_API_URL,
+        NODE_ENV: process.env.NODE_ENV
+      });
       const response = await axios.get(url);
       console.log('Response received:', response);
       setDailySales(response.data.dailySales);
@@ -59,8 +67,12 @@ const SalesChart = () => {
         status: error.response?.status,
         statusText: error.response?.statusText,
         url: error.config?.url,
-        method: error.config?.method
+        method: error.config?.method,
+        data: error.response?.data
       });
+      setError(error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -102,6 +114,14 @@ const SalesChart = () => {
     fetchSalesData(selectedMonth);
   }, [selectedMonth]);
   
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div>Error: {error}</div>;
+  }
+
   if (!dates || !Array.isArray(dates)) {
     console.log('Rendering error state - dates:', dates);
     return <div>Error: Invalid or missing dates data.</div>;
