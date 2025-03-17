@@ -177,6 +177,11 @@ const SalesChart = () => {
 
   const allDaysInMonth = generateDaysArray(2025, selectedMonth);
 
+  // Get today's date
+  const today = new Date();
+  const currentMonth = today.getMonth() + 1;
+  const currentDay = today.getDate();
+
   // Filter numeric dates for the selected month
   const numericDates = dates
     .map(date => {
@@ -185,8 +190,12 @@ const SalesChart = () => {
     })
     .filter(day => day !== null);
 
-  // Fill missing days with 0 sales
+  // Fill missing days with 0 sales, but only for past dates
   const filledDailySales = allDaysInMonth.map(day => {
+    // If it's the current month and the day hasn't occurred yet, return null
+    if (selectedMonth === currentMonth && day > currentDay) {
+      return null;
+    }
     const index = numericDates.indexOf(day);
     return index !== -1 ? dailySales[index] : 0;
   });
@@ -213,6 +222,8 @@ const SalesChart = () => {
         backgroundColor: 'rgba(75, 192, 192, 0.2)',
         borderColor: 'rgba(75, 192, 192, 1)',
         borderWidth: 1,
+        // Add this to hide bars for future dates
+        hidden: allDaysInMonth.map(day => selectedMonth === currentMonth && day > currentDay)
       },
       {
         label: 'Projected Sales',
