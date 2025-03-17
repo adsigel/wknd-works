@@ -1,0 +1,1 @@
+web: cd hello-world && node server.js 

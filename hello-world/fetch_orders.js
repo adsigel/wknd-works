@@ -1,7 +1,14 @@
 import axios from 'axios';
+import dotenv from 'dotenv';
+
+dotenv.config({ path: '.env' });
 
 const SHOP = process.env.SHOP;
 const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
+
+if (!SHOP || !ACCESS_TOKEN) {
+  throw new Error('Missing required environment variables: SHOP and ACCESS_TOKEN');
+}
 
 function getMonthRange(year, month) {
     const firstDay = new Date(Date.UTC(year, month - 1, 1)); // First day of month in UTC
