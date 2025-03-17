@@ -63,6 +63,10 @@ app.get('/api/sales/:month', async (req, res) => {
       const month = parseInt(req.params.month) || new Date().getMonth() + 1;
       const year = new Date().getFullYear();
       console.log(`Fetching data for ${year}-${month}`);
+      console.log('Environment variables:', {
+        SHOPIFY_SHOP_NAME: process.env.SHOPIFY_SHOP_NAME ? 'Set' : 'Not set',
+        SHOPIFY_ACCESS_TOKEN: process.env.SHOPIFY_ACCESS_TOKEN ? 'Set' : 'Not set'
+      });
       const salesData = await calculateCumulativeSales(year, month, currentSalesGoal);
       const response = {
         dailySales: salesData.map(d => d.dailySales),
@@ -74,7 +78,16 @@ app.get('/api/sales/:month', async (req, res) => {
       res.json(response);
     } catch (error) {
       console.error('Error fetching sales data:', error);
-      res.status(500).json({ error: 'Failed to retrieve sales data' });
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        response: error.response?.data
+      });
+      res.status(500).json({ 
+        error: 'Failed to retrieve sales data',
+        details: error.message,
+        response: error.response?.data
+      });
     }
   });
 

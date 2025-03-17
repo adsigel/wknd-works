@@ -25,12 +25,22 @@ async function fetchOrders(year, month) {
     let pageInfo = null;
 
     try {
+        console.log('Fetching orders with parameters:', {
+            shop: SHOP,
+            firstDay: firstDay.toISOString(),
+            lastDay: lastDay.toISOString(),
+            accessToken: ACCESS_TOKEN ? 'Set' : 'Not set'
+        });
+
         while (hasNextPage) {
+            const url = `https://${SHOP}/admin/api/2024-01/orders.json`;
+            console.log('Making request to:', url);
+            
             const response = await axios.get(
-                `https://${process.env.SHOP}/admin/api/2024-01/orders.json`,
+                url,
                 {
                     headers: {
-                        "X-Shopify-Access-Token": process.env.ACCESS_TOKEN,
+                        "X-Shopify-Access-Token": ACCESS_TOKEN,
                     },
                     params: {
                         processed_at_min: firstDay.toISOString(),
@@ -61,7 +71,14 @@ async function fetchOrders(year, month) {
         console.log(`Fetched ${allOrders.length} orders for ${year}-${month}`);
         return allOrders;
     } catch (error) {
-        console.error('Error fetching orders:', error.response?.data || error.message);
+        console.error('Error fetching orders:', {
+            message: error.message,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            data: error.response?.data,
+            url: error.config?.url,
+            headers: error.config?.headers
+        });
         throw new Error(`Failed to fetch orders: ${error.message}`);
     }
 }
