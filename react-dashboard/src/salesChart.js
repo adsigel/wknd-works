@@ -229,12 +229,16 @@ const SalesChart = () => {
     datasets: [
       {
         label: 'Daily Sales',
-        data: filledDailySales,
+        data: allDaysInMonth.map(day => {
+          if (selectedMonth === currentMonth && day > currentDay) {
+            return null;
+          }
+          const index = numericDates.indexOf(day);
+          return index !== -1 ? dailySales[index] : 0;
+        }),
         backgroundColor: 'rgba(75, 192, 192, 0.2)',
         borderColor: 'rgba(75, 192, 192, 1)',
         borderWidth: 1,
-        // Add this to hide bars for future dates
-        hidden: allDaysInMonth.map(day => selectedMonth === currentMonth && day > currentDay)
       },
       {
         label: 'Projected Sales',
