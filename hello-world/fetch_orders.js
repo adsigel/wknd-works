@@ -33,7 +33,9 @@ async function fetchOrders(year, month) {
         });
 
         while (hasNextPage) {
-            const url = `https://${SHOPIFY_SHOP_NAME}/admin/api/2024-01/orders.json`;
+            // Ensure shop name doesn't include the full URL if it was provided
+            const cleanShopName = SHOPIFY_SHOP_NAME.replace(/\.myshopify\.com$/, '');
+            const url = `https://${cleanShopName}.myshopify.com/admin/api/2024-01/orders.json`;
             console.log('Making request to:', url);
             
             const response = await axios.get(

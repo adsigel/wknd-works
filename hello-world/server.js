@@ -133,6 +133,106 @@ app.get('/api/sales/recommend-projection', (req, res) => {
 //   }
 // });
 
+// Store settings in memory for now (can be moved to a database later)
+let dashboardSettings = {
+  chartSettings: {
+    'Daily Sales': {
+      backgroundColor: 'rgba(44, 61, 47, 0.6)',
+      borderColor: 'rgba(44, 61, 47, 1)',
+      borderWidth: 1
+    },
+    'Projected Sales': {
+      backgroundColor: 'rgba(210, 129, 95, 0.2)',
+      borderColor: 'rgba(210, 129, 95, 1)',
+      borderWidth: 2
+    },
+    'Sales Goal': {
+      backgroundColor: 'rgba(143, 171, 158, 0.2)',
+      borderColor: 'rgba(143, 171, 158, 1)',
+      borderWidth: 3
+    }
+  },
+  projectionSettings: {
+    'Monday': 0,
+    'Tuesday': 0,
+    'Wednesday': 20,
+    'Thursday': 20,
+    'Friday': 20,
+    'Saturday': 20,
+    'Sunday': 20
+  }
+};
+
+// Get current dashboard settings
+app.get('/api/settings', (req, res) => {
+  console.log('GET /api/settings - Sending settings:', dashboardSettings);
+  res.json(dashboardSettings);
+});
+
+// Update chart settings
+app.post('/api/settings/chart', (req, res) => {
+  try {
+    console.log('POST /api/settings/chart - Received body:', req.body);
+    const newSettings = req.body;
+    
+    // Validate the structure of newSettings
+    if (!newSettings || typeof newSettings !== 'object') {
+      throw new Error('Invalid settings format');
+    }
+    
+    // Ensure all required series are present
+    const requiredSeries = ['Daily Sales', 'Projected Sales', 'Sales Goal'];
+    for (const series of requiredSeries) {
+      if (!newSettings[series]) {
+        throw new Error(`Missing settings for ${series}`);
+      }
+    }
+    
+    dashboardSettings.chartSettings = newSettings;
+    console.log('Updated chart settings:', dashboardSettings.chartSettings);
+    res.json({ success: true, settings: dashboardSettings.chartSettings });
+  } catch (error) {
+    console.error('Error updating chart settings:', error);
+    console.error('Request body:', req.body);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update projection settings
+app.post('/api/settings/projection', (req, res) => {
+  try {
+    console.log('POST /api/settings/projection - Received body:', req.body);
+    const newSettings = req.body;
+    
+    // Validate the structure of newSettings
+    if (!newSettings || typeof newSettings !== 'object') {
+      throw new Error('Invalid settings format');
+    }
+    
+    // Validate that all days are present
+    const requiredDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+    for (const day of requiredDays) {
+      if (typeof newSettings[day] !== 'number') {
+        throw new Error(`Missing or invalid percentage for ${day}`);
+      }
+    }
+    
+    // Validate that percentages sum to 100
+    const total = Object.values(newSettings).reduce((sum, val) => sum + Number(val), 0);
+    if (Math.abs(total - 100) > 0.01) {
+      throw new Error(`Projection percentages must sum to 100% (got ${total.toFixed(2)}%)`);
+    }
+    
+    dashboardSettings.projectionSettings = newSettings;
+    console.log('Updated projection settings:', dashboardSettings.projectionSettings);
+    res.json({ success: true, settings: dashboardSettings.projectionSettings });
+  } catch (error) {
+    console.error('Error updating projection settings:', error);
+    console.error('Request body:', req.body);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Start the Express server
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);

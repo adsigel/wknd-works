@@ -75,17 +75,57 @@ const SalesChart = () => {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
-  
-  // Initialize settings from localStorage or use defaults
-  const [chartSettings, setChartSettings] = useState(() => {
-    const saved = localStorage.getItem('chartSettings');
-    return saved ? JSON.parse(saved) : defaultChartSettings;
-  });
-  
-  const [projectionSettings, setProjectionSettings] = useState(() => {
-    const saved = localStorage.getItem('projectionSettings');
-    return saved ? JSON.parse(saved) : defaultProjectionSettings;
-  });
+  const [chartSettings, setChartSettings] = useState(defaultChartSettings);
+  const [projectionSettings, setProjectionSettings] = useState(defaultProjectionSettings);
+
+  // Load settings from backend when component mounts
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const response = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/settings`);
+        setChartSettings(response.data.chartSettings);
+        setProjectionSettings(response.data.projectionSettings);
+      } catch (error) {
+        console.error('Error loading settings:', error);
+        // Fall back to defaults if we can't load from server
+        setChartSettings(defaultChartSettings);
+        setProjectionSettings(defaultProjectionSettings);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  const handleChartSettingsChange = async (newSettings) => {
+    try {
+      const response = await axios.post(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/settings/chart`,
+        newSettings
+      );
+      if (response.data.success) {
+        setChartSettings(newSettings);
+      }
+    } catch (error) {
+      console.error('Error saving chart settings:', error);
+      // Optionally show error to user
+    }
+  };
+
+  const handleProjectionSettingsChange = async (newSettings) => {
+    try {
+      const response = await axios.post(
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/settings/projection`,
+        newSettings
+      );
+      if (response.data.success) {
+        setProjectionSettings(newSettings);
+        // Refresh sales data to update projections
+        fetchSalesData(selectedMonth, selectedYear);
+      }
+    } catch (error) {
+      console.error('Error saving projection settings:', error);
+      // Optionally show error to user
+    }
+  };
 
   const fetchSalesData = async (month, year) => {
     setLoading(true);
@@ -151,16 +191,6 @@ const SalesChart = () => {
       console.error('Invalid goal value:', tempGoal);
       // You might want to show an error message to the user here
     }
-  };
-
-  const handleChartSettingsChange = (newSettings) => {
-    setChartSettings(newSettings);
-    localStorage.setItem('chartSettings', JSON.stringify(newSettings));
-  };
-
-  const handleProjectionSettingsChange = (newSettings) => {
-    setProjectionSettings(newSettings);
-    localStorage.setItem('projectionSettings', JSON.stringify(newSettings));
   };
 
   // Call fetchSalesData when the user selects a different month or year
