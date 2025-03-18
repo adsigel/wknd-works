@@ -75,8 +75,17 @@ const SalesChart = () => {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
-  const [chartSettings, setChartSettings] = useState(defaultChartSettings);
-  const [projectionSettings, setProjectionSettings] = useState(defaultProjectionSettings);
+  
+  // Initialize settings from localStorage or use defaults
+  const [chartSettings, setChartSettings] = useState(() => {
+    const saved = localStorage.getItem('chartSettings');
+    return saved ? JSON.parse(saved) : defaultChartSettings;
+  });
+  
+  const [projectionSettings, setProjectionSettings] = useState(() => {
+    const saved = localStorage.getItem('projectionSettings');
+    return saved ? JSON.parse(saved) : defaultProjectionSettings;
+  });
 
   const fetchSalesData = async (month, year) => {
     setLoading(true);
@@ -146,12 +155,12 @@ const SalesChart = () => {
 
   const handleChartSettingsChange = (newSettings) => {
     setChartSettings(newSettings);
-    // You might want to save these settings to localStorage or backend
+    localStorage.setItem('chartSettings', JSON.stringify(newSettings));
   };
 
   const handleProjectionSettingsChange = (newSettings) => {
     setProjectionSettings(newSettings);
-    // You might want to save these settings to localStorage or backend
+    localStorage.setItem('projectionSettings', JSON.stringify(newSettings));
   };
 
   // Call fetchSalesData when the user selects a different month or year
