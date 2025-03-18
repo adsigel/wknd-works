@@ -3,6 +3,8 @@ import axios from 'axios';
 import { Bar } from 'react-chartjs-2'; // Still using Bar for the bar charts
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, PointElement, Title, Tooltip, Legend, LineController } from 'chart.js'; // Import PointElement and LineController
 import { format } from 'date-fns';
+import Settings from './Settings';
+import './Settings.css';
 
 ChartJS.register(
   CategoryScale,
@@ -31,6 +33,33 @@ const months = [
   { value: 12, label: "December" }
 ];
 
+const defaultChartSettings = {
+  'Daily Sales': {
+    backgroundColor: 'rgba(44, 61, 47, 0.6)',
+    borderColor: 'rgba(44, 61, 47, 1)',
+    borderWidth: 1
+  },
+  'Projected Sales': {
+    backgroundColor: 'rgba(210, 129, 95, 0.2)',
+    borderColor: 'rgba(210, 129, 95, 1)',
+    borderWidth: 2
+  },
+  'Sales Goal': {
+    backgroundColor: 'rgba(143, 171, 158, 0.2)',
+    borderColor: 'rgba(143, 171, 158, 1)',
+    borderWidth: 3
+  }
+};
+
+const defaultProjectionSettings = {
+  'Monday': 0,
+  'Tuesday': 0,
+  'Wednesday': 20,
+  'Thursday': 20,
+  'Friday': 20,
+  'Saturday': 20,
+  'Sunday': 20
+};
 
 const SalesChart = () => {
   
@@ -45,6 +74,9 @@ const SalesChart = () => {
   const [tempGoal, setTempGoal] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  const [chartSettings, setChartSettings] = useState(defaultChartSettings);
+  const [projectionSettings, setProjectionSettings] = useState(defaultProjectionSettings);
 
   const fetchSalesData = async (month, year) => {
     setLoading(true);
@@ -112,6 +144,16 @@ const SalesChart = () => {
     }
   };
 
+  const handleChartSettingsChange = (newSettings) => {
+    setChartSettings(newSettings);
+    // You might want to save these settings to localStorage or backend
+  };
+
+  const handleProjectionSettingsChange = (newSettings) => {
+    setProjectionSettings(newSettings);
+    // You might want to save these settings to localStorage or backend
+  };
+
   // Call fetchSalesData when the user selects a different month or year
   useEffect(() => {
     console.log('useEffect triggered with month:', selectedMonth, 'year:', selectedYear);
@@ -136,47 +178,91 @@ const SalesChart = () => {
     plugins: {
       tooltip: {
         callbacks: {
-          label: function (context) {
-            let value = context.raw;
-            return typeof value === 'number' && !isNaN(value)
-              ? `$${value.toFixed(2)}`
-              : '$0.00';
+          title: function(context) {
+            const dayIndex = Array.isArray(context) ? context[0].dataIndex : context.dataIndex;
+            const date = new Date(selectedYear, selectedMonth - 1, dayIndex + 1);
+            const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][date.getDay()];
+            return `${date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })} (${dayOfWeek})`;
           },
-        },
+          label: function(context) {
+            const dayIndex = Array.isArray(context) ? context[0].dataIndex : context.dataIndex;
+            const labels = [];
+
+            // Format numbers with commas
+            const formatNumber = (num) => {
+              return new Intl.NumberFormat('en-US', { 
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+              }).format(num);
+            };
+
+            // Get daily sales goal for this day
+            const date = new Date(selectedYear, selectedMonth - 1, dayIndex + 1);
+            const dayOfWeek = date.getDay();
+            const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek];
+            const dayPercentage = (projectionSettings[dayName] || 0) / monthPercentageTotal;
+            const dailyGoal = salesGoal * dayPercentage;
+
+            // Always show daily goal
+            labels.push(`Daily Goal: $${formatNumber(dailyGoal)}`);
+
+            // Get actual sales for this day
+            const index = numericDates.indexOf(dayIndex + 1);
+            const actualSales = index !== -1 ? dailySales[index] : 0;
+            if (actualSales !== null) {
+              labels.push(`Daily Sales: $${formatNumber(actualSales)}`);
+            }
+
+            // Calculate monthly sales to date (should be equal to the daily sales since it's the first day with sales)
+            const monthlyToDate = actualSales || 0;
+            labels.push(`Monthly Sales to Date: $${formatNumber(monthlyToDate)}`);
+
+            // Compare against projection
+            const projectedToDate = filledProjectedSales[dayIndex];
+            const difference = monthlyToDate - projectedToDate;
+            const aheadBehind = difference >= 0 ? 'ahead of' : 'behind';
+            labels.push(`$${formatNumber(Math.abs(difference))} ${aheadBehind} projection`);
+
+            return labels;
+          },
+          labelColor: function() {
+            return false; // This removes the color box
+          }
+        }
       },
       legend: {
-        display: true, // Ensures the legend is visible
-      },
+        display: true
+      }
     },
     scales: {
       x: {
         title: {
           display: true,
-          text: 'Day of the Month', // X-axis label
-          font: { size: 14, weight: 'bold' },
-        },
+          text: 'Day of the Month',
+          font: { size: 14, weight: 'bold' }
+        }
       },
       y: {
         title: {
           display: true,
-          text: 'Total Sales', // Y-axis label
-          font: { size: 14, weight: 'bold' },
+          text: 'Total Sales',
+          font: { size: 14, weight: 'bold' }
         },
         ticks: {
-          callback: function (value) {
+          callback: function(value) {
             return typeof value === 'number' && !isNaN(value)
               ? `$${value.toFixed(2)}`
               : '$0.00';
-          },
-        },
-      },
+          }
+        }
+      }
     },
     datasets: {
       bar: {
-        hidden: false // Ensure bar charts are visible by default
+        hidden: false
       },
       line: {
-        hidden: false // Ensure line charts are visible by default
+        hidden: false
       }
     }
   };
@@ -218,13 +304,33 @@ const SalesChart = () => {
   });
 
   const dailyProjectedGoal = salesGoal / openDaysInMonth.length;
-  let cumulativeProjectedSales = 0;
 
+  // Calculate projected sales with normalized daily goals
+  let cumulativeProjectedSales = 0;
+  
+  // First, calculate the total percentage points that will be used in the month
+  const monthPercentageTotal = allDaysInMonth.reduce((total, day) => {
+    const date = new Date(2025, selectedMonth - 1, day);
+    const dayOfWeek = date.getDay();
+    const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek];
+    return total + (projectionSettings[dayName] || 0);
+  }, 0);
+
+  // Now calculate projected sales for each day
   const filledProjectedSales = allDaysInMonth.map(day => {
-    const dayOfWeek = new Date(2025, selectedMonth - 1, day).getDay();
-    if (dayOfWeek !== 1 && dayOfWeek !== 2) { // Only add projected sales for open days
-      cumulativeProjectedSales += dailyProjectedGoal;
-    }
+    const date = new Date(2025, selectedMonth - 1, day);
+    const dayOfWeek = date.getDay();
+    const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek];
+    
+    // Get the percentage for this day and normalize it relative to the total percentage points
+    const dayPercentage = (projectionSettings[dayName] || 0) / monthPercentageTotal;
+    
+    // Calculate this day's portion of the monthly goal
+    const dailyGoal = salesGoal * dayPercentage;
+    
+    // Add this day's projected sales to the cumulative total
+    cumulativeProjectedSales += dailyGoal;
+    
     return cumulativeProjectedSales;
   });
 
@@ -240,26 +346,20 @@ const SalesChart = () => {
           const index = numericDates.indexOf(day);
           return index !== -1 ? dailySales[index] : 0;
         }),
-        backgroundColor: 'rgba(44, 61, 47, 0.6)',
-        borderColor: 'rgba(44, 61, 47, 1)',
-        borderWidth: 1,
+        ...chartSettings['Daily Sales']
       },
       {
         label: 'Projected Sales',
         data: filledProjectedSales,
-        backgroundColor: 'rgba(210, 129, 95, 0.2)',
-        borderColor: 'rgba(210, 129, 95, 1)',
-        borderWidth: 2,
-        borderDash: [5, 5],
+        ...chartSettings['Projected Sales'],
         type: 'line',
-        fill: false
+        fill: false,
+        borderDash: [5, 5]
       },
       {
         label: 'Sales Goal',
         data: Array(allDaysInMonth.length).fill(salesGoal),
-        backgroundColor: 'rgba(143, 171, 158, 0.2)',
-        borderColor: 'rgba(143, 171, 158, 1)',
-        borderWidth: 3,
+        ...chartSettings['Sales Goal'],
         type: 'line',
         fill: false
       },
@@ -268,49 +368,75 @@ const SalesChart = () => {
 
   return (
     <div>
-      <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-        <label>Select Month: </label>
-        <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))}>
-          {months.map((m) => (
-            <option key={m.value} value={m.value}>{m.label}</option>
-          ))}
-        </select>
+      <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <label>Select Month: </label>
+          <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))}>
+            {months.map((m) => (
+              <option key={m.value} value={m.value}>{m.label}</option>
+            ))}
+          </select>
 
-        <label style={{ marginLeft: '20px' }}>Year: </label>
-        <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}>
-          {[2024, 2025].map((year) => (
-            <option key={year} value={year}>{year}</option>
-          ))}
-        </select>
-
-        <div style={{ marginLeft: '20px' }}>
-          {isEditingGoal ? (
-            <form onSubmit={handleGoalSubmit} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <label>Monthly Goal: $</label>
-              <input
-                type="number"
-                value={tempGoal}
-                onChange={(e) => setTempGoal(e.target.value)}
-                style={{ width: '100px' }}
-                autoFocus
-              />
-              <button type="submit">Save</button>
-              <button type="button" onClick={() => setIsEditingGoal(false)}>Cancel</button>
-            </form>
-          ) : (
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <label>Monthly Goal: ${salesGoal.toLocaleString()}</label>
-              <button onClick={() => {
-                setTempGoal(salesGoal.toString());
-                setIsEditingGoal(true);
-              }}>Edit</button>
-            </div>
-          )}
+          <label style={{ marginLeft: '20px' }}>Year: </label>
+          <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}>
+            {[2024, 2025].map((year) => (
+              <option key={year} value={year}>{year}</option>
+            ))}
+          </select>
         </div>
+
+        <button 
+          onClick={() => setShowSettings(true)}
+          style={{
+            padding: '8px 16px',
+            backgroundColor: '#2c3d2f',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Settings
+        </button>
+      </div>
+
+      <div style={{ marginBottom: '20px' }}>
+        {isEditingGoal ? (
+          <form onSubmit={handleGoalSubmit} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <label>Monthly Goal: $</label>
+            <input
+              type="number"
+              value={tempGoal}
+              onChange={(e) => setTempGoal(e.target.value)}
+              style={{ width: '100px' }}
+              autoFocus
+            />
+            <button type="submit">Save</button>
+            <button type="button" onClick={() => setIsEditingGoal(false)}>Cancel</button>
+          </form>
+        ) : (
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+            <label>Monthly Goal: ${salesGoal.toLocaleString()}</label>
+            <button onClick={() => {
+              setTempGoal(salesGoal.toString());
+              setIsEditingGoal(true);
+            }}>Edit</button>
+          </div>
+        )}
       </div>
 
       <h2>Sales for {months.find(m => m.value === selectedMonth)?.label} {selectedYear}</h2>
       <Bar data={salesData} options={options} />
+
+      {showSettings && (
+        <Settings
+          onClose={() => setShowSettings(false)}
+          chartSettings={chartSettings}
+          onChartSettingsChange={handleChartSettingsChange}
+          projectionSettings={projectionSettings}
+          onProjectionSettingsChange={handleProjectionSettingsChange}
+        />
+      )}
     </div>
   );
 };

@@ -1,0 +1,196 @@
+.settings-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.settings-content {
+  background-color: white;
+  padding: 2rem;
+  border-radius: 8px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.settings-content h2 {
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  color: #2c3d2f;
+}
+
+.settings-content h3 {
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  color: #2c3d2f;
+}
+
+.settings-content h4 {
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: #2c3d2f;
+}
+
+.style-section {
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+}
+
+.style-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.color-input-group, .border-width-group {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.color-input-group label, .border-width-group label {
+  min-width: 100px;
+}
+
+.color-inputs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.color-inputs input[type="color"] {
+  width: 50px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.color-inputs input[type="text"] {
+  width: 100px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.color-inputs input[type="text"]:focus {
+  outline: none;
+  border-color: #2c3d2f;
+  box-shadow: 0 0 0 2px rgba(44, 61, 47, 0.2);
+}
+
+.color-inputs input[type="text"]:invalid {
+  border-color: #ff4444;
+  background-color: #fff8f8;
+}
+
+input[type="number"] {
+  width: 60px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+}
+
+.projection-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+  max-width: 200px;
+}
+
+.projection-inputs label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.projection-inputs input {
+  width: 80px;
+}
+
+.button-group {
+  margin-top: 2rem;
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+}
+
+button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+button[type="submit"] {
+  background-color: #2c3d2f;
+  color: white;
+}
+
+button[type="submit"]:hover {
+  background-color: #1a2b1d;
+}
+
+button[type="submit"]:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+button[type="button"] {
+  background-color: #e0e0e0;
+  color: #333;
+}
+
+button[type="button"]:hover {
+  background-color: #d0d0d0;
+}
+
+.projection-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.total-percentage {
+  font-weight: bold;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.total-percentage.valid {
+  color: #2c3d2f;
+  background-color: #e8f5e9;
+}
+
+.total-percentage.invalid {
+  color: #c62828;
+  background-color: #ffebee;
+}
+
+.error-message {
+  color: #c62828;
+  font-size: 0.9em;
+}
+
+.invalid input {
+  border-color: #c62828;
+  background-color: #ffebee;
+} 
