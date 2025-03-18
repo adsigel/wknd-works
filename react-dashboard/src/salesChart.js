@@ -62,9 +62,9 @@ const defaultProjectionSettings = {
 };
 
 const SalesChart = () => {
-  
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   
   const [dailySales, setDailySales] = useState([]);
   const [dailyAmounts, setDailyAmounts] = useState([]);
@@ -78,6 +78,16 @@ const SalesChart = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [chartSettings, setChartSettings] = useState(defaultChartSettings);
   const [projectionSettings, setProjectionSettings] = useState(defaultProjectionSettings);
+
+  // Add resize listener
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Load settings from backend when component mounts
   useEffect(() => {
@@ -214,10 +224,25 @@ const SalesChart = () => {
     return <div>Error: Invalid or missing dates data.</div>;
   }
 
+  const fontFamily = "'Nunito Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif";
+  document.body.style.fontFamily = fontFamily;
+
   const options = {
     responsive: true,
+    font: {
+      family: fontFamily,
+      weight: 500
+    },
     plugins: {
       tooltip: {
+        titleFont: { 
+          family: fontFamily,
+          weight: 600
+        },
+        bodyFont: { 
+          family: fontFamily,
+          weight: 400
+        },
         callbacks: {
           title: function(context) {
             const dayIndex = Array.isArray(context) ? context[0].dataIndex : context.dataIndex;
@@ -264,12 +289,6 @@ const SalesChart = () => {
             const monthlyToDate = dailySales[dayIndex] || 0;
             labels.push(`Monthly Sales to Date: $${formatNumber(monthlyToDate)}`);
 
-            // Compare against projection
-            const projectedToDate = filledProjectedSales[dayIndex];
-            const difference = monthlyToDate - projectedToDate;
-            const aheadBehind = difference >= 0 ? 'ahead of' : 'behind';
-            labels.push(`$${formatNumber(Math.abs(difference))} ${aheadBehind} projection`);
-
             return labels;
           },
           labelColor: function() {
@@ -278,7 +297,13 @@ const SalesChart = () => {
         }
       },
       legend: {
-        display: true
+        display: true,
+        labels: {
+          font: {
+            family: fontFamily,
+            weight: 500
+          }
+        }
       }
     },
     scales: {
@@ -286,20 +311,41 @@ const SalesChart = () => {
         title: {
           display: true,
           text: 'Day of the Month',
-          font: { size: 14, weight: 'bold' }
+          font: { 
+            size: 14, 
+            weight: 600,
+            family: fontFamily
+          }
+        },
+        ticks: {
+          font: {
+            family: fontFamily,
+            weight: 400
+          },
+          callback: function(value, index) {
+            return index + 1; // Just show the number
+          }
         }
       },
       y: {
         title: {
           display: true,
           text: 'Total Sales',
-          font: { size: 14, weight: 'bold' }
+          font: { 
+            size: 14, 
+            weight: 600,
+            family: fontFamily
+          }
         },
         ticks: {
+          font: {
+            family: fontFamily,
+            weight: 400
+          },
           callback: function(value) {
             return typeof value === 'number' && !isNaN(value)
-              ? `$${value.toFixed(2)}`
-              : '$0.00';
+              ? `$${Math.round(value).toLocaleString()}`
+              : '$0';
           }
         }
       }
@@ -413,9 +459,85 @@ const SalesChart = () => {
     ],
   };
 
+  // Calculate stats for the metrics box
+  const calculateStats = () => {
+    // Get the current day's index based on numericDates
+    const currentDayOfMonth = currentDay;
+    const lastDayIndex = currentDayOfMonth - 1; // Convert to 0-based index
+    const currentTotal = dailySales[lastDayIndex] || 0;
+    
+    // 1. $ to Target
+    const dollarsToTarget = salesGoal - currentTotal;
+
+    // 2. X of Y days hit
+    let daysHit = 0;
+    let totalOpenDays = 0;
+    
+    // Calculate today's goal
+    const today = new Date();
+    const dayOfWeek = today.getDay();
+    const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek];
+    const dayPercentage = (projectionSettings[dayName] || 0) / monthPercentageTotal;
+    const todayGoal = salesGoal * dayPercentage;
+    
+    allDaysInMonth.forEach((day, index) => {
+      // Only count days up to current day
+      if (index >= currentDayOfMonth) {
+        return;
+      }
+
+      const date = new Date(selectedYear, selectedMonth - 1, day);
+      const dayOfWeek = date.getDay();
+      const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek];
+      
+      // Skip if the store is closed (Monday/Tuesday)
+      if (projectionSettings[dayName] === 0) {
+        return;
+      }
+
+      totalOpenDays++;
+
+      // Calculate daily goal for this day
+      const dayPercentage = (projectionSettings[dayName] || 0) / monthPercentageTotal;
+      const dailyGoal = salesGoal * dayPercentage;
+
+      // Calculate actual daily sales
+      const currentDaySales = index === 0 ? dailySales[0] : dailySales[index] - dailySales[index - 1];
+      
+      if (currentDaySales >= dailyGoal) {
+        daysHit++;
+      }
+    });
+
+    // 3. $ from Plan - compare against projected sales for current day
+    const projectedToDate = filledProjectedSales[lastDayIndex];
+    const dollarsFromPlan = currentTotal - projectedToDate;
+
+    return {
+      dollarsToTarget,
+      daysHit,
+      totalOpenDays,
+      dollarsFromPlan,
+      todayGoal
+    };
+  };
+
+  const stats = calculateStats();
+
+  // Format currency
+  const formatCurrency = (amount) => {
+    const formatter = new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+    return formatter.format(amount);
+  };
+
   return (
     <div>
-      <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between' }}>
+      <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between', fontFamily }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <label>Select Month: </label>
           <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))}>
@@ -447,7 +569,7 @@ const SalesChart = () => {
         </button>
       </div>
 
-      <div style={{ marginBottom: '20px' }}>
+      <div style={{ marginBottom: '20px', fontFamily }}>
         {isEditingGoal ? (
           <form onSubmit={handleGoalSubmit} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <label>Monthly Goal: $</label>
@@ -472,8 +594,70 @@ const SalesChart = () => {
         )}
       </div>
 
-      <h2>Sales for {months.find(m => m.value === selectedMonth)?.label} {selectedYear}</h2>
-      <Bar data={salesData} options={options} />
+      <h2 style={{ fontFamily }}>{months.find(m => m.value === selectedMonth)?.label} {selectedYear}</h2>
+      
+      <div style={{ 
+        display: 'flex', 
+        flexDirection: isMobile ? 'column-reverse' : 'row',
+        gap: '20px', 
+        alignItems: isMobile ? 'stretch' : 'flex-start'
+      }}>
+        <div style={{ flex: 1 }}>
+          <Bar data={salesData} options={options} />
+        </div>
+        
+        <div style={{
+          minWidth: isMobile ? 'auto' : '200px',
+          padding: '20px',
+          backgroundColor: '#f5f5f5',
+          borderRadius: '8px',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+          fontFamily,
+          marginBottom: isMobile ? '20px' : '0'
+        }}>
+          <h3 style={{ margin: '0 0 15px 0', color: '#2c3d2f' }}>Stats</h3>
+          
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <div>
+              <div style={{ fontSize: '14px', color: '#666' }}>Today's Sales Goal</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#2c3d2f' }}>
+                {formatCurrency(stats.todayGoal)}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: '14px', color: '#666' }}>$ to Target</div>
+              <div style={{ 
+                fontSize: '18px', 
+                fontWeight: 'bold',
+                color: stats.dollarsToTarget > 0 ? '#d2815f' : '#8fab9e'
+              }}>
+                {formatCurrency(Math.abs(stats.dollarsToTarget))}
+                {stats.dollarsToTarget > 0 ? ' under' : ' over'}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: '14px', color: '#666' }}>Days Hit Target</div>
+              <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#2c3d2f' }}>
+                {stats.daysHit} of {stats.totalOpenDays} days
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: '14px', color: '#666' }}>$ from Plan</div>
+              <div style={{ 
+                fontSize: '18px', 
+                fontWeight: 'bold',
+                color: stats.dollarsFromPlan >= 0 ? '#8fab9e' : '#d2815f'
+              }}>
+                {formatCurrency(Math.abs(stats.dollarsFromPlan))}
+                {stats.dollarsFromPlan >= 0 ? ' ahead' : ' behind'}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {showSettings && (
         <Settings
