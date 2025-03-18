@@ -1,7 +1,7 @@
 import express from 'express';
-import { calculateCumulativeSales } from './fetch_orders.js'; // Import the function from fetch_orders.js
-import dotenv from 'dotenv';
 import cors from 'cors';
+import { calculateCumulativeSales } from './fetch_orders.js';
+import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 
 dotenv.config({ path: '.env' });
@@ -61,71 +61,36 @@ const getGoalKey = (year, month) => `${year}-${month}`;
 // Default goal if none is set for a month
 const DEFAULT_GOAL = 10000;
 
+let currentSalesGoal = 8500; // Default sales goal
+
 // API endpoint to get sales data
 app.get('/api/sales/:month', async (req, res) => {
-    console.log('Sales endpoint hit with params:', req.params);
-    try {
-      const month = parseInt(req.params.month) || new Date().getMonth() + 1;
-      const year = new Date().getFullYear();
-      console.log(`Fetching data for ${year}-${month}`);
-      console.log('Environment variables:', {
-        SHOPIFY_SHOP_NAME: process.env.SHOPIFY_SHOP_NAME ? 'Set' : 'Not set',
-        SHOPIFY_ACCESS_TOKEN: process.env.SHOPIFY_ACCESS_TOKEN ? 'Set' : 'Not set'
-      });
-      
-      // Get the goal for this month/year, or use default
-      const goalKey = getGoalKey(year, month);
-      const monthGoal = salesGoals.get(goalKey) || DEFAULT_GOAL;
-      
-      const salesData = await calculateCumulativeSales(year, month, monthGoal);
-      const response = {
-        dailySales: salesData.map(d => d.dailySales),
-        dates: salesData.map(d => d.date),
-        salesGoal: monthGoal,
-        projectedSales: salesData.map(d => d.cumulativeProjectedDailySales)
-      };
-      console.log('Sending response:', response);
-      res.json(response);
-    } catch (error) {
-      console.error('Error fetching sales data:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        response: error.response?.data
-      });
-      res.status(500).json({ 
-        error: 'Failed to retrieve sales data',
-        details: error.message,
-        response: error.response?.data
-      });
-    }
-  });
+  try {
+    const month = parseInt(req.params.month);
+    const data = await calculateCumulativeSales(month);
+    
+    res.json({
+      dailySales: data.dailySales,
+      dates: data.dates,
+      salesGoal: currentSalesGoal,
+      projectedSales: data.projectedSales
+    });
+  } catch (error) {
+    console.error('Error fetching sales data:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // API endpoint to update sales goal
-app.post('/api/sales/goal', async (req, res) => {
-    try {
-      console.log('Received goal update request:', req.body);
-      const { goal, month, year } = req.body;
-      console.log('Parsed values:', { goal, month, year });
-      
-      if (typeof goal !== 'number' || isNaN(goal)) {
-        console.log('Invalid goal value received:', goal);
-        return res.status(400).json({ error: 'Invalid sales goal' });
-      }
-      
-      // Use provided month/year or current month/year
-      const targetMonth = month || new Date().getMonth() + 1;
-      const targetYear = year || new Date().getFullYear();
-      const goalKey = getGoalKey(targetYear, targetMonth);
-      
-      salesGoals.set(goalKey, goal);
-      console.log('Updated sales goal for', goalKey, 'to:', goal);
-      res.json({ success: true, newGoal: goal });
-    } catch (error) {
-      console.error('Error updating sales goal:', error);
-      res.status(500).json({ error: 'Failed to update sales goal' });
-    }
-  });
+app.post('/api/sales/goal', (req, res) => {
+  const { goal } = req.body;
+  if (typeof goal === 'number' && goal > 0) {
+    currentSalesGoal = goal;
+    res.json({ success: true });
+  } else {
+    res.status(400).json({ error: 'Invalid goal value' });
+  }
+});
 
 // API endpoint to get current sales goal
 app.get('/api/sales/goal', (req, res) => {
@@ -135,6 +100,21 @@ app.get('/api/sales/goal', (req, res) => {
     const goal = salesGoals.get(goalKey) || DEFAULT_GOAL;
     res.json({ goal });
   });
+
+app.get('/api/sales/recommend-projection', (req, res) => {
+  // Return a simple recommendation based on typical retail patterns
+  res.json({
+    distribution: {
+      'Monday': 0,
+      'Tuesday': 0,
+      'Wednesday': 15,
+      'Thursday': 15,
+      'Friday': 20,
+      'Saturday': 30,
+      'Sunday': 20
+    }
+  });
+});
 
 // // API endpoint to get sales report (optional, you can keep it if needed)
 // app.get('/sales-report', async (req, res) => {
