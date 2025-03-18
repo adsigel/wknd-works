@@ -201,6 +201,7 @@ export async function calculateCumulativeSales(month) {
     // Convert to arrays and calculate cumulative
     const dates = [];
     const salesArray = [];
+    const dailyAmounts = [];
     let cumulative = 0;
 
     // Sort the dates to ensure chronological order
@@ -208,7 +209,9 @@ export async function calculateCumulativeSales(month) {
     
     sortedDates.forEach(date => {
       dates.push(date);
-      cumulative += dailySales[date];
+      const dailyAmount = dailySales[date];
+      dailyAmounts.push(Number(dailyAmount.toFixed(2)));
+      cumulative += dailyAmount;
       salesArray.push(Number(cumulative.toFixed(2)));
     });
 
@@ -217,7 +220,8 @@ export async function calculateCumulativeSales(month) {
 
     return {
       dates,
-      dailySales: salesArray,
+      dailySales: salesArray, // Return cumulative amounts for the chart
+      dailyAmounts, // Add daily amounts for the tooltip
       salesGoal: 8500,
       projectedSales
     };

@@ -67,6 +67,7 @@ const SalesChart = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   
   const [dailySales, setDailySales] = useState([]);
+  const [dailyAmounts, setDailyAmounts] = useState([]);
   const [dates, setDates] = useState([]);
   const [salesGoal, setSalesGoal] = useState(0);
   const [projectedSales, setProjectedSales] = useState([]);
@@ -140,6 +141,7 @@ const SalesChart = () => {
       const response = await axios.get(url);
       console.log('Response received:', response);
       setDailySales(response.data.dailySales);
+      setDailyAmounts(response.data.dailyAmounts);
       setDates(response.data.dates);
       setSalesGoal(response.data.salesGoal);
       setProjectedSales(response.data.projectedSales);
@@ -245,15 +247,21 @@ const SalesChart = () => {
             // Always show daily goal
             labels.push(`Daily Goal: $${formatNumber(dailyGoal)}`);
 
-            // Get actual sales for this day
+            // Get actual daily sales from dailyAmounts
             const index = numericDates.indexOf(dayIndex + 1);
-            const actualSales = index !== -1 ? dailySales[index] : 0;
-            if (actualSales !== null) {
-              labels.push(`Daily Sales: $${formatNumber(actualSales)}`);
+            let dailySalesAmount = 0;
+            if (index !== -1 && dailyAmounts && dailyAmounts[index] !== undefined) {
+              dailySalesAmount = dailyAmounts[index];
+            } else {
+              // Calculate from cumulative as fallback
+              const currentCumulative = dailySales[dayIndex] || 0;
+              const previousCumulative = dayIndex > 0 ? dailySales[dayIndex - 1] || 0 : 0;
+              dailySalesAmount = currentCumulative - previousCumulative;
             }
+            labels.push(`Daily Sales: $${formatNumber(dailySalesAmount)}`);
 
-            // Calculate monthly sales to date (should be equal to the daily sales since it's the first day with sales)
-            const monthlyToDate = actualSales || 0;
+            // Show monthly sales to date (cumulative)
+            const monthlyToDate = dailySales[dayIndex] || 0;
             labels.push(`Monthly Sales to Date: $${formatNumber(monthlyToDate)}`);
 
             // Compare against projection

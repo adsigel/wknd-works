@@ -71,6 +71,7 @@ app.get('/api/sales/:month', async (req, res) => {
     
     res.json({
       dailySales: data.dailySales,
+      dailyAmounts: data.dailyAmounts,
       dates: data.dates,
       salesGoal: currentSalesGoal,
       projectedSales: data.projectedSales
