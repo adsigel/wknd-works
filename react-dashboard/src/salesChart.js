@@ -211,14 +211,18 @@ const SalesChart = () => {
     return index !== -1 ? dailySales[index] : 0;
   });
 
-  // Define store open days (assuming closed on Tuesdays)
-  const openDaysInMonth = allDaysInMonth.filter(day => new Date(2025, selectedMonth - 1, day).getDay() !== 2);
+  // Define store open days (closed on Mondays and Tuesdays)
+  const openDaysInMonth = allDaysInMonth.filter(day => {
+    const dayOfWeek = new Date(2025, selectedMonth - 1, day).getDay();
+    return dayOfWeek !== 1 && dayOfWeek !== 2; // 1 is Monday, 2 is Tuesday
+  });
 
   const dailyProjectedGoal = salesGoal / openDaysInMonth.length;
   let cumulativeProjectedSales = 0;
 
   const filledProjectedSales = allDaysInMonth.map(day => {
-    if (openDaysInMonth.includes(day)) {
+    const dayOfWeek = new Date(2025, selectedMonth - 1, day).getDay();
+    if (dayOfWeek !== 1 && dayOfWeek !== 2) { // Only add projected sales for open days
       cumulativeProjectedSales += dailyProjectedGoal;
     }
     return cumulativeProjectedSales;
