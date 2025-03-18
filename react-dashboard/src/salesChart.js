@@ -39,7 +39,7 @@ const SalesChart = () => {
   
   const [dailySales, setDailySales] = useState([]);
   const [dates, setDates] = useState([]);
-  const [salesGoal, setSalesGoal] = useState(10000);
+  const [salesGoal, setSalesGoal] = useState(0);
   const [projectedSales, setProjectedSales] = useState([]);
   const [isEditingGoal, setIsEditingGoal] = useState(false);
   const [tempGoal, setTempGoal] = useState('');
