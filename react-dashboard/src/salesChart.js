@@ -240,25 +240,26 @@ const SalesChart = () => {
           const index = numericDates.indexOf(day);
           return index !== -1 ? dailySales[index] : 0;
         }),
-        backgroundColor: 'rgba(75, 192, 192, 0.2)',
-        borderColor: 'rgba(75, 192, 192, 1)',
+        backgroundColor: 'rgba(44, 61, 47, 0.6)',
+        borderColor: 'rgba(44, 61, 47, 1)',
         borderWidth: 1,
       },
       {
         label: 'Projected Sales',
         data: filledProjectedSales,
-        backgroundColor: 'rgba(153, 102, 255, 0.2)',
-        borderColor: 'rgba(153, 102, 255, 1)',
-        borderWidth: 1,
+        backgroundColor: 'rgba(210, 129, 95, 0.2)',
+        borderColor: 'rgba(210, 129, 95, 1)',
+        borderWidth: 2,
+        borderDash: [5, 5],
         type: 'line',
         fill: false
       },
       {
         label: 'Sales Goal',
         data: Array(allDaysInMonth.length).fill(salesGoal),
-        backgroundColor: 'rgba(255, 159, 64, 0.2)',
-        borderColor: 'rgba(255, 159, 64, 1)',
-        borderWidth: 1,
+        backgroundColor: 'rgba(143, 171, 158, 0.2)',
+        borderColor: 'rgba(143, 171, 158, 1)',
+        borderWidth: 3,
         type: 'line',
         fill: false
       },
