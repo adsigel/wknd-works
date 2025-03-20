@@ -110,17 +110,31 @@ input[type="number"] {
   flex-direction: column;
   gap: 1rem;
   margin-top: 1rem;
-  max-width: 200px;
 }
 
-.projection-inputs label {
+.projection-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  padding: 0.5rem;
+  border-radius: 4px;
+  background-color: #f8f8f8;
+}
+
+.projection-row label {
+  min-width: 200px;
   display: flex;
   align-items: center;
   gap: 0.5rem;
 }
 
-.projection-inputs input {
-  width: 80px;
+.historical-data {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.historical-data small {
+  margin-top: 2px;
 }
 
 .button-group {

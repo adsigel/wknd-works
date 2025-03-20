@@ -10,7 +10,7 @@ function getMonthRange(year, month) {
 }
 
 // Function to fetch orders for a specific month
-async function fetchOrders(year, month) {
+export async function fetchOrders(year, month) {
     // Check credentials before making API call
     const SHOPIFY_SHOP_NAME = process.env.SHOPIFY_SHOP_NAME;
     const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
@@ -80,6 +80,129 @@ async function fetchOrders(year, month) {
             data: error.response?.data,
             url: error.config?.url,
             headers: error.config?.headers
+        });
+        throw new Error(`Failed to fetch orders: ${error.message}`);
+    }
+}
+
+// Helper function to wait between API calls
+async function wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Helper function to make API request with retries
+async function makeRequest(url, config, retries = 3) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            // Wait 500ms between requests to respect the 2 calls/second limit
+            await wait(500);
+            return await axios.get(url, config);
+        } catch (error) {
+            if (error.response?.status === 429 && attempt < retries) {
+                // If rate limited, wait longer before retrying
+                console.log(`Rate limited on attempt ${attempt}, waiting 2 seconds...`);
+                await wait(2000);
+                continue;
+            }
+            throw error;
+        }
+    }
+}
+
+// Function to fetch orders since a specific date
+export async function getOrders(startDate) {
+    // Check credentials before making API call
+    const SHOPIFY_SHOP_NAME = process.env.SHOPIFY_SHOP_NAME;
+    const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
+
+    if (!SHOPIFY_SHOP_NAME || !SHOPIFY_ACCESS_TOKEN) {
+        throw new Error('Missing required environment variables: SHOPIFY_SHOP_NAME and SHOPIFY_ACCESS_TOKEN');
+    }
+
+    const cleanShopName = SHOPIFY_SHOP_NAME.replace(/\.myshopify\.com$/, '');
+    const baseUrl = `https://${cleanShopName}.myshopify.com/admin/api/2024-01/orders.json`;
+    const dailyTotals = {};
+    let totalOrders = 0;
+    let pageCount = 0;
+
+    try {
+        console.log('Fetching orders since:', startDate);
+        
+        let hasNextPage = true;
+        let nextUrl = null;
+
+        // Initial request parameters
+        const initialParams = {
+            created_at_min: startDate,
+            status: "any",
+            limit: 250,
+            fields: 'created_at,total_price',
+            order: 'created_at asc'
+        };
+
+        while (hasNextPage) {
+            pageCount++;
+            let response;
+
+            if (nextUrl) {
+                // For subsequent pages, use the full next URL from the Link header
+                response = await makeRequest(nextUrl, {
+                    headers: {
+                        "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN
+                    }
+                });
+            } else {
+                // For the first page, use our initial parameters
+                response = await makeRequest(baseUrl, {
+                    headers: {
+                        "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN
+                    },
+                    params: initialParams
+                });
+            }
+
+            // Process this page's orders into daily totals
+            response.data.orders.forEach(order => {
+                const date = order.created_at.split('T')[0];
+                dailyTotals[date] = (dailyTotals[date] || 0) + parseFloat(order.total_price);
+            });
+
+            totalOrders += response.data.orders.length;
+            console.log(`Processed page ${pageCount} with ${response.data.orders.length} orders. Total so far: ${totalOrders}`);
+
+            // Check for next page using Link header
+            const linkHeader = response.headers['link'];
+            if (linkHeader && linkHeader.includes('rel="next"')) {
+                // Extract the full next URL from the Link header
+                const match = linkHeader.match(/<([^>]+)>;\s*rel="next"/);
+                if (match) {
+                    nextUrl = match[1];
+                    hasNextPage = true;
+                    console.log(`Next page URL found, continuing to page ${pageCount + 1}...`);
+                } else {
+                    hasNextPage = false;
+                }
+            } else {
+                hasNextPage = false;
+                console.log('No more pages to process.');
+            }
+        }
+
+        // Convert to array format expected by the rest of the code
+        const orders = Object.entries(dailyTotals).map(([date, total]) => ({
+            created_at: date,
+            total_price: total.toFixed(2)
+        })).sort((a, b) => a.created_at.localeCompare(b.created_at));
+
+        console.log(`Successfully processed ${totalOrders} orders into ${orders.length} daily totals`);
+        return orders;
+    } catch (error) {
+        console.error('Error fetching orders:', {
+            message: error.message,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            data: error.response?.data,
+            url: error.config?.url
         });
         throw new Error(`Failed to fetch orders: ${error.message}`);
     }

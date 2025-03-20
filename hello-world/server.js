@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-import { calculateCumulativeSales } from './fetch_orders.js';
+import { calculateCumulativeSales, getOrders } from './fetch_orders.js';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 
@@ -230,6 +230,69 @@ app.post('/api/settings/projection', (req, res) => {
   } catch (error) {
     console.error('Error updating projection settings:', error);
     console.error('Request body:', req.body);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Analyze historical sales distribution
+app.get('/api/analyze-sales', async (req, res) => {
+  try {
+    // Get today's date
+    const today = new Date();
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - 90); // Go back 90 days
+
+    // Initialize totals for each day of the week
+    const dayTotals = {
+      'Sunday': 0,
+      'Monday': 0,
+      'Tuesday': 0,
+      'Wednesday': 0,
+      'Thursday': 0,
+      'Friday': 0,
+      'Saturday': 0
+    };
+    const dayCounts = { ...dayTotals };
+
+    // Get orders for the last 90 days
+    const orders = await getOrders(startDate.toISOString());
+    
+    // Calculate total sales for each day of the week
+    orders.forEach(order => {
+      const orderDate = new Date(order.created_at);
+      const dayOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][orderDate.getDay()];
+      dayTotals[dayOfWeek] += parseFloat(order.total_price);
+      dayCounts[dayOfWeek]++;
+    });
+
+    // Calculate total sales across all days
+    const totalSales = Object.values(dayTotals).reduce((sum, val) => sum + val, 0);
+
+    // Calculate percentages
+    const percentages = {};
+    Object.keys(dayTotals).forEach(day => {
+      percentages[day] = totalSales > 0 ? Math.round(dayTotals[day] / totalSales * 100) : 0;
+    });
+
+    // Ensure percentages sum to 100
+    const totalPercentage = Object.values(percentages).reduce((sum, val) => sum + val, 0);
+    if (totalPercentage !== 100 && totalPercentage > 0) {
+      // Add/subtract the difference from the day with the highest sales
+      const highestDay = Object.entries(dayTotals)
+        .reduce((a, b) => (a[1] > b[1] ? a : b))[0];
+      percentages[highestDay] += (100 - totalPercentage);
+    }
+
+    const totalOrders = Object.values(dayCounts).reduce((sum, val) => sum + val, 0);
+
+    res.json({
+      percentages,
+      totalSales,
+      totalOrders,
+      daysAnalyzed: 90
+    });
+  } catch (error) {
+    console.error('Error analyzing sales:', error);
     res.status(500).json({ error: error.message });
   }
 });

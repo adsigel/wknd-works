@@ -87,8 +87,10 @@ const Settings = ({ onClose, chartSettings, onChartSettingsChange, projectionSet
   // Local state for form values
   const [chartStyles, setChartStyles] = useState(chartSettings);
   const [projectionDistribution, setProjectionDistribution] = useState(projectionSettings);
-  const [totalPercentage, setTotalPercentage] = useState(100); // Initialize with current sum
+  const [totalPercentage, setTotalPercentage] = useState(100);
   const [isValid, setIsValid] = useState(true);
+  const [historicalData, setHistoricalData] = useState(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // Calculate total percentage whenever distribution changes
   useEffect(() => {
@@ -115,6 +117,19 @@ const Settings = ({ onClose, chartSettings, onChartSettingsChange, projectionSet
       [day]: numValue
     };
     setProjectionDistribution(newDistribution);
+  };
+
+  const analyzePastSales = async () => {
+    setIsAnalyzing(true);
+    try {
+      const response = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/analyze-sales`);
+      setHistoricalData(response.data);
+    } catch (error) {
+      console.error('Error analyzing sales:', error);
+      alert('Failed to analyze sales data. Please try again.');
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -171,7 +186,30 @@ const Settings = ({ onClose, chartSettings, onChartSettingsChange, projectionSet
           <section>
             <h3>Customize Projection</h3>
             <div className="projection-header">
-              <p>Set the percentage of monthly sales goal for each day</p>
+              <div>
+                <p>Set the percentage of monthly sales goal for each day</p>
+                <button 
+                  type="button" 
+                  onClick={analyzePastSales}
+                  disabled={isAnalyzing}
+                  style={{
+                    marginTop: '10px',
+                    padding: '8px 16px',
+                    backgroundColor: '#8fab9e',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {isAnalyzing ? 'Analyzing...' : 'Analyze Past Sales'}
+                </button>
+                {historicalData && (
+                  <p style={{ marginTop: '10px', color: '#666', fontSize: '0.9em' }}>
+                    Analyzed {historicalData.totalOrders} orders totaling {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(historicalData.totalSales)} over the past {historicalData.daysAnalyzed} days. You can use this to update your daily sales projections.
+                  </p>
+                )}
+              </div>
               <div className={`total-percentage ${isValid ? 'valid' : 'invalid'}`}>
                 Total: {totalPercentage.toFixed(1)}%
                 {!isValid && <span className="error-message"> (Must equal 100%)</span>}
@@ -179,19 +217,26 @@ const Settings = ({ onClose, chartSettings, onChartSettingsChange, projectionSet
             </div>
             <div className="projection-inputs">
               {Object.entries(projectionDistribution).map(([day, percentage]) => (
-                <label key={day} className={!isValid ? 'invalid' : ''}>
-                  {day}:
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    value={percentage}
-                    onChange={(e) => handleProjectionChange(day, e.target.value)}
-                    className={!isValid ? 'invalid' : ''}
-                  />
-                  %
-                </label>
+                <div key={day} className="projection-row">
+                  <label className={!isValid ? 'invalid' : ''}>
+                    {day}:
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={percentage}
+                      onChange={(e) => handleProjectionChange(day, e.target.value)}
+                      className={!isValid ? 'invalid' : ''}
+                    />
+                    %
+                  </label>
+                  {historicalData && (
+                    <span className="historical-data">
+                      Historical: {historicalData.percentages[day]}%
+                    </span>
+                  )}
+                </div>
               ))}
             </div>
           </section>
