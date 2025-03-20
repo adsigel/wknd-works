@@ -1,0 +1,28 @@
+{
+  "chartSettings": {
+    "Daily Sales": {
+      "backgroundColor": "rgba(44, 61, 47, 0.6)",
+      "borderColor": "rgba(44, 61, 47, 1)",
+      "borderWidth": 1
+    },
+    "Projected Sales": {
+      "backgroundColor": "rgba(210, 129, 95, 0.2)",
+      "borderColor": "rgba(210, 129, 95, 1)",
+      "borderWidth": 2
+    },
+    "Sales Goal": {
+      "backgroundColor": "rgba(143, 171, 158, 0.2)",
+      "borderColor": "rgba(143, 171, 158, 1)",
+      "borderWidth": 3
+    }
+  },
+  "projectionSettings": {
+    "Monday": 0,
+    "Tuesday": 0,
+    "Wednesday": 7,
+    "Thursday": 13,
+    "Friday": 18,
+    "Saturday": 33,
+    "Sunday": 29
+  }
+}

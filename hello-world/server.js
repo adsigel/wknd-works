@@ -3,6 +3,12 @@ import cors from 'cors';
 import { calculateCumulativeSales, getOrders } from './fetch_orders.js';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: '.env' });
 
@@ -134,8 +140,10 @@ app.get('/api/sales/recommend-projection', (req, res) => {
 //   }
 // });
 
-// Store settings in memory for now (can be moved to a database later)
-let dashboardSettings = {
+const SETTINGS_FILE = path.join(__dirname, 'dashboard_settings.json');
+
+// Default settings
+const defaultSettings = {
   chartSettings: {
     'Daily Sales': {
       backgroundColor: 'rgba(44, 61, 47, 0.6)',
@@ -161,6 +169,34 @@ let dashboardSettings = {
     'Friday': 20,
     'Saturday': 20,
     'Sunday': 20
+  }
+};
+
+// Load settings from file or use defaults
+let dashboardSettings;
+try {
+  if (fs.existsSync(SETTINGS_FILE)) {
+    const fileContent = fs.readFileSync(SETTINGS_FILE, 'utf8');
+    dashboardSettings = JSON.parse(fileContent);
+    console.log('Loaded settings from file');
+  } else {
+    dashboardSettings = defaultSettings;
+    // Save default settings to file
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(defaultSettings, null, 2));
+    console.log('Created new settings file with defaults');
+  }
+} catch (error) {
+  console.error('Error loading settings:', error);
+  dashboardSettings = defaultSettings;
+}
+
+// Helper function to save settings
+const saveSettings = () => {
+  try {
+    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(dashboardSettings, null, 2));
+    console.log('Settings saved successfully');
+  } catch (error) {
+    console.error('Error saving settings:', error);
   }
 };
 
@@ -190,6 +226,7 @@ app.post('/api/settings/chart', (req, res) => {
     }
     
     dashboardSettings.chartSettings = newSettings;
+    saveSettings(); // Save to file
     console.log('Updated chart settings:', dashboardSettings.chartSettings);
     res.json({ success: true, settings: dashboardSettings.chartSettings });
   } catch (error) {
@@ -225,6 +262,7 @@ app.post('/api/settings/projection', (req, res) => {
     }
     
     dashboardSettings.projectionSettings = newSettings;
+    saveSettings(); // Save to file
     console.log('Updated projection settings:', dashboardSettings.projectionSettings);
     res.json({ success: true, settings: dashboardSettings.projectionSettings });
   } catch (error) {
