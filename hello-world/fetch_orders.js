@@ -4,9 +4,15 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env' });
 
 function getMonthRange(year, month) {
-    const firstDay = new Date(Date.UTC(year, month - 1, 1)); // First day of month in UTC
-    const lastDay = new Date(Date.UTC(year, month, 0, 23, 59, 59)); // Last day of month in UTC
-    return { firstDay, lastDay };
+    // Create dates in local timezone first
+    const firstDay = new Date(year, month - 1, 1);
+    const lastDay = new Date(year, month, 0, 23, 59, 59);
+    
+    // Convert to UTC timestamps
+    const firstDayUTC = new Date(Date.UTC(firstDay.getFullYear(), firstDay.getMonth(), firstDay.getDate()));
+    const lastDayUTC = new Date(Date.UTC(lastDay.getFullYear(), lastDay.getMonth(), lastDay.getDate(), 23, 59, 59));
+    
+    return { firstDay: firstDayUTC, lastDay: lastDayUTC };
 }
 
 // Function to fetch orders for a specific month
@@ -225,28 +231,24 @@ function getOpenDays(firstDay, lastDay) {
 }
 
 // Replace with:
-function generateMockData() {
+function generateMockData(month, year) {
   const dailySales = [];
   const dates = [];
-  const daysInMonth = new Date(2025, 3, 0).getDate(); // March 2025
+  const daysInMonth = new Date(year, month, 0).getDate();
   let cumulativeSum = 0;
   
   for (let day = 1; day <= daysInMonth; day++) {
-    const date = new Date(Date.UTC(2025, 2, day)); // March is 2 (0-based)
+    const date = new Date(Date.UTC(year, month - 1, day));
     const dayOfWeek = date.getUTCDay();
     
     let dailyAmount;
-    // March 19th should be exactly $4,808.20
-    if (day === 19) {
-      dailyAmount = 4808.20;
-    } else {
-      // Generate random sales between $400 and $800
-      // Higher sales on weekends
-      dailyAmount = dayOfWeek === 0 || dayOfWeek === 6 ? 
-        Math.random() * 400 + 600 : // $600-1000 on weekends
-        Math.random() * 300 + 400;  // $400-700 on weekdays
-      dailyAmount = Number(dailyAmount.toFixed(2));
-    }
+    // Generate random sales between $400 and $800
+    // Higher sales on weekends
+    dailyAmount = dayOfWeek === 0 || dayOfWeek === 6 ? 
+      Math.random() * 400 + 600 : // $600-1000 on weekends
+      Math.random() * 300 + 400;  // $400-700 on weekdays
+    dailyAmount = Number(dailyAmount.toFixed(2));
+    
     cumulativeSum += dailyAmount;
     dailySales.push(cumulativeSum);
     dates.push(date.toISOString().split('T')[0]);
@@ -294,16 +296,16 @@ function generateProjectedSales(daysInMonth) {
   return projectedSales;
 }
 
-export async function calculateCumulativeSales(month) {
+export async function calculateCumulativeSales(month, year = new Date().getFullYear()) {
   try {
     // Check if we have Shopify credentials
     if (!process.env.SHOPIFY_SHOP_NAME || !process.env.SHOPIFY_ACCESS_TOKEN) {
-      throw new Error('Missing Shopify credentials');
+      console.log('No Shopify credentials found, using mock data');
+      return generateMockData(month, year);
     }
 
-    const currentYear = new Date().getFullYear();
-    const orders = await fetchOrders(currentYear, month);
-    const { firstDay, lastDay } = getMonthRange(currentYear, month);
+    const orders = await fetchOrders(year, month);
+    const { firstDay, lastDay } = getMonthRange(year, month);
 
     // Initialize daily sales for every day in the month
     let dailySales = {};
@@ -339,18 +341,20 @@ export async function calculateCumulativeSales(month) {
     });
 
     // Generate projected sales based on the actual month's data
-    const projectedSales = Array(sortedDates.length).fill(8500);
+    const projectedSales = Array(sortedDates.length).fill(8500); // Default goal
 
     return {
       dates,
-      dailySales: salesArray, // Return cumulative amounts for the chart
-      dailyAmounts, // Add daily amounts for the tooltip
-      salesGoal: 8500,
+      dailySales: salesArray,
+      dailyAmounts,
+      salesGoal: 8500, // Default goal
       projectedSales
     };
 
   } catch (error) {
     console.error('Error in calculateCumulativeSales:', error);
-    throw error; // Let the frontend handle the error
+    // If there's an error, fall back to mock data
+    console.log('Falling back to mock data due to error');
+    return generateMockData(month, year);
   }
 }

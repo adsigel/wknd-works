@@ -141,19 +141,28 @@ const SalesChart = () => {
   const fetchSalesData = async (month, year) => {
     setLoading(true);
     setError(null);
-    const url = `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/sales/${month}`;
     try {
-      console.log('Making request to:', url);
+      // First, get the sales goal for this month
+      const goalResponse = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/sales/goal`, {
+        params: { month, year }
+      });
+      const salesGoal = goalResponse.data.goal || 0;
+      setSalesGoal(salesGoal);
+
+      // Then get the sales data
+      const url = `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/sales/${month}`;
+      console.log('Making request to:', url, 'with year:', year);
       console.log('Environment variables:', {
         REACT_APP_API_URL: process.env.REACT_APP_API_URL,
         NODE_ENV: process.env.NODE_ENV
       });
-      const response = await axios.get(url);
+      const response = await axios.get(url, {
+        params: { year }
+      });
       console.log('Response received:', response);
       setDailySales(response.data.dailySales);
       setDailyAmounts(response.data.dailyAmounts);
       setDates(response.data.dates);
-      setSalesGoal(response.data.salesGoal);
       setProjectedSales(response.data.projectedSales);
     } catch (error) {
       console.error("Error fetching sales data:", error);

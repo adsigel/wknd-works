@@ -3,14 +3,24 @@ import cors from 'cors';
 import { calculateCumulativeSales, getOrders } from './fetch_orders.js';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
-import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import mongoose from 'mongoose';
+import SalesGoal from './backend/models/SalesGoal.js';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config({ path: '.env' });
+
+// MongoDB connection
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/wknd-dashboard', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true
+})
+.then(() => console.log('Connected to MongoDB'))
+.catch(err => console.error('MongoDB connection error:', err));
 
 const app = express();
 const port = process.env.PORT || 5001;
@@ -69,44 +79,108 @@ const DEFAULT_GOAL = 10000;
 
 let currentSalesGoal = 8500; // Default sales goal
 
+// API endpoint to get current sales goal
+app.get('/api/sales/goal', async (req, res) => {
+  try {
+    const month = parseInt(req.query.month) || new Date().getMonth() + 1;
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    
+    const date = new Date(year, month - 1, 1);
+    if (isNaN(date.getTime())) {
+      return res.status(400).json({ error: 'Invalid date' });
+    }
+
+    const goal = await SalesGoal.findOne({ date });
+
+    res.json({ goal: goal ? goal.goal : 0 });
+  } catch (error) {
+    console.error('Error fetching sales goal:', error);
+    res.status(500).json({ error: 'Failed to fetch sales goal' });
+  }
+});
+
+// API endpoint to update sales goal
+app.post('/api/sales/goal', async (req, res) => {
+  try {
+    const { goal, month, year } = req.body;
+    if (typeof goal !== 'number' || goal <= 0) {
+      return res.status(400).json({ error: 'Invalid goal value' });
+    }
+
+    const date = new Date(year, month - 1, 1);
+    if (isNaN(date.getTime())) {
+      return res.status(400).json({ error: 'Invalid date' });
+    }
+
+    const updatedGoal = await SalesGoal.findOneAndUpdate(
+      { date },
+      { goal },
+      { upsert: true, new: true }
+    );
+
+    res.json({ success: true, goal: updatedGoal });
+  } catch (error) {
+    console.error('Error updating sales goal:', error);
+    res.status(500).json({ error: 'Failed to update sales goal' });
+  }
+});
+
 // API endpoint to get sales data
 app.get('/api/sales/:month', async (req, res) => {
   try {
-    const month = parseInt(req.params.month);
-    const data = await calculateCumulativeSales(month);
-    
-    res.json({
-      dailySales: data.dailySales,
-      dailyAmounts: data.dailyAmounts,
-      dates: data.dates,
-      salesGoal: currentSalesGoal,
-      projectedSales: data.projectedSales
+    console.log('Received request for sales data:', {
+      month: req.params.month,
+      year: req.query.year,
+      url: req.url
     });
+
+    const month = parseInt(req.params.month);
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    
+    console.log('Parsed values:', { month, year });
+    
+    // Validate month and year
+    if (isNaN(month) || month < 1 || month > 12) {
+      console.log('Invalid month:', month);
+      return res.status(400).json({ error: 'Invalid month' });
+    }
+    if (isNaN(year) || year < 2000 || year > 2100) {
+      console.log('Invalid year:', year);
+      return res.status(400).json({ error: 'Invalid year' });
+    }
+
+    // Get the sales goal for this month
+    const date = new Date(year, month - 1, 1);
+    console.log('Created date:', date);
+    
+    if (isNaN(date.getTime())) {
+      console.log('Invalid date created');
+      return res.status(400).json({ error: 'Invalid date' });
+    }
+
+    // Get the sales goal from the database
+    const goal = await SalesGoal.findOne({ date });
+    console.log('Found goal:', goal);
+    const salesGoal = goal ? goal.goal : 8500; // Default goal if none set
+
+    // Get the sales data
+    const data = await calculateCumulativeSales(month, year);
+    console.log('Got sales data:', {
+      datesLength: data.dates.length,
+      dailySalesLength: data.dailySales.length,
+      dailyAmountsLength: data.dailyAmounts.length
+    });
+    
+    // Update the sales goal in the response
+    data.salesGoal = salesGoal;
+    data.projectedSales = Array(data.dates.length).fill(salesGoal);
+    
+    res.json(data);
   } catch (error) {
     console.error('Error fetching sales data:', error);
     res.status(500).json({ error: error.message });
   }
 });
-
-// API endpoint to update sales goal
-app.post('/api/sales/goal', (req, res) => {
-  const { goal } = req.body;
-  if (typeof goal === 'number' && goal > 0) {
-    currentSalesGoal = goal;
-    res.json({ success: true });
-  } else {
-    res.status(400).json({ error: 'Invalid goal value' });
-  }
-});
-
-// API endpoint to get current sales goal
-app.get('/api/sales/goal', (req, res) => {
-    const month = parseInt(req.query.month) || new Date().getMonth() + 1;
-    const year = parseInt(req.query.year) || new Date().getFullYear();
-    const goalKey = getGoalKey(year, month);
-    const goal = salesGoals.get(goalKey) || DEFAULT_GOAL;
-    res.json({ goal });
-  });
 
 app.get('/api/sales/recommend-projection', (req, res) => {
   // Return a simple recommendation based on typical retail patterns
