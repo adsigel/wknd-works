@@ -3,11 +3,11 @@ import dotenv from 'dotenv';
 
 dotenv.config({ path: '.env' });
 
-const SHOP = process.env.SHOP;
-const ACCESS_TOKEN = process.env.ACCESS_TOKEN;
+const SHOP = `${process.env.SHOPIFY_SHOP_NAME}.myshopify.com`;
+const ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
 
-if (!SHOP || !ACCESS_TOKEN) {
-  throw new Error('Missing required environment variables: SHOP and ACCESS_TOKEN');
+if (!process.env.SHOPIFY_SHOP_NAME || !process.env.SHOPIFY_ACCESS_TOKEN) {
+  throw new Error('Missing required environment variables: SHOPIFY_SHOP_NAME and SHOPIFY_ACCESS_TOKEN');
 }
 
 function formatDate(date) {
