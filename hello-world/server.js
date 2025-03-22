@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
 import SalesGoal from './backend/models/SalesGoal.js';
 import fs from 'fs';
+import Order from './backend/models/Order.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -79,106 +80,87 @@ const DEFAULT_GOAL = 10000;
 
 let currentSalesGoal = 8500; // Default sales goal
 
-// API endpoint to get current sales goal
+// Get all monthly goals for a year
+app.get('/api/sales/goals', async (req, res) => {
+  try {
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const goals = [];
+    
+    // Generate array of months for the year
+    for (let month = 1; month <= 12; month++) {
+      const date = new Date(year, month - 1, 1);
+      const goal = await SalesGoal.findOne({ date });
+      goals.push({
+        month,
+        goal: goal ? goal.goal : 8500 // Default goal if none set
+      });
+    }
+    
+    res.json(goals);
+  } catch (error) {
+    console.error('Error fetching monthly goals:', error);
+    res.status(500).json({ error: 'Failed to fetch monthly goals' });
+  }
+});
+
+// Get sales goal for a specific month
 app.get('/api/sales/goal', async (req, res) => {
   try {
-    const month = parseInt(req.query.month) || new Date().getMonth() + 1;
+    const month = parseInt(req.query.month);
     const year = parseInt(req.query.year) || new Date().getFullYear();
     
-    const date = new Date(year, month - 1, 1);
-    if (isNaN(date.getTime())) {
-      return res.status(400).json({ error: 'Invalid date' });
+    if (!month || month < 1 || month > 12) {
+      return res.status(400).json({ error: 'Invalid month' });
     }
-
+    
+    const date = new Date(year, month - 1, 1);
     const goal = await SalesGoal.findOne({ date });
-
-    res.json({ goal: goal ? goal.goal : 0 });
+    
+    res.json({ goal: goal ? goal.goal : 8500 });
   } catch (error) {
     console.error('Error fetching sales goal:', error);
     res.status(500).json({ error: 'Failed to fetch sales goal' });
   }
 });
 
-// API endpoint to update sales goal
+// Update sales goal for a specific month
 app.post('/api/sales/goal', async (req, res) => {
   try {
     const { goal, month, year } = req.body;
-    if (typeof goal !== 'number' || goal <= 0) {
-      return res.status(400).json({ error: 'Invalid goal value' });
+    
+    if (!goal || !month || month < 1 || month > 12) {
+      return res.status(400).json({ error: 'Invalid goal or month' });
     }
-
+    
     const date = new Date(year, month - 1, 1);
-    if (isNaN(date.getTime())) {
-      return res.status(400).json({ error: 'Invalid date' });
-    }
-
-    const updatedGoal = await SalesGoal.findOneAndUpdate(
+    await SalesGoal.findOneAndUpdate(
       { date },
       { goal },
       { upsert: true, new: true }
     );
-
-    res.json({ success: true, goal: updatedGoal });
+    
+    res.json({ success: true });
   } catch (error) {
     console.error('Error updating sales goal:', error);
     res.status(500).json({ error: 'Failed to update sales goal' });
   }
 });
 
-// API endpoint to get sales data
+// Get sales data for a specific month
 app.get('/api/sales/:month', async (req, res) => {
   try {
-    console.log('Received request for sales data:', {
-      month: req.params.month,
-      year: req.query.year,
-      url: req.url
-    });
-
     const month = parseInt(req.params.month);
     const year = parseInt(req.query.year) || new Date().getFullYear();
     
-    console.log('Parsed values:', { month, year });
-    
-    // Validate month and year
-    if (isNaN(month) || month < 1 || month > 12) {
-      console.log('Invalid month:', month);
+    if (!month || month < 1 || month > 12) {
       return res.status(400).json({ error: 'Invalid month' });
     }
-    if (isNaN(year) || year < 2000 || year > 2100) {
-      console.log('Invalid year:', year);
-      return res.status(400).json({ error: 'Invalid year' });
-    }
-
-    // Get the sales goal for this month
-    const date = new Date(year, month - 1, 1);
-    console.log('Created date:', date);
     
-    if (isNaN(date.getTime())) {
-      console.log('Invalid date created');
-      return res.status(400).json({ error: 'Invalid date' });
-    }
-
-    // Get the sales goal from the database
-    const goal = await SalesGoal.findOne({ date });
-    console.log('Found goal:', goal);
-    const salesGoal = goal ? goal.goal : 8500; // Default goal if none set
-
-    // Get the sales data
-    const data = await calculateCumulativeSales(month, year);
-    console.log('Got sales data:', {
-      datesLength: data.dates.length,
-      dailySalesLength: data.dailySales.length,
-      dailyAmountsLength: data.dailyAmounts.length
-    });
-    
-    // Update the sales goal in the response
-    data.salesGoal = salesGoal;
-    data.projectedSales = Array(data.dates.length).fill(salesGoal);
-    
-    res.json(data);
+    const result = await calculateCumulativeSales(month, year);
+    res.json(result);
   } catch (error) {
     console.error('Error fetching sales data:', error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to fetch sales data' });
   }
 });
 
@@ -406,6 +388,118 @@ app.get('/api/analyze-sales', async (req, res) => {
   } catch (error) {
     console.error('Error analyzing sales:', error);
     res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper function to generate mock orders for analysis
+function generateMockOrders() {
+  const orders = [];
+  const threeMonthsAgo = new Date();
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+  
+  // Generate 90 days of mock data
+  for (let i = 0; i < 90; i++) {
+    const date = new Date(threeMonthsAgo);
+    date.setDate(date.getDate() + i);
+    
+    // Skip Mondays and Tuesdays (store is closed)
+    if (date.getDay() === 1 || date.getDay() === 2) continue;
+    
+    // Generate random sales amount between $100 and $1000
+    const amount = Math.random() * 900 + 100;
+    
+    orders.push({
+      date: date,
+      amount: amount
+    });
+  }
+  
+  return orders;
+}
+
+// Analyze past sales data to calculate daily distribution
+app.get('/api/sales/analyze', async (req, res) => {
+  try {
+    console.log('Starting sales analysis...');
+    
+    // Get today's date
+    const today = new Date();
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - 90); // Go back 90 days
+    console.log('Analyzing data from:', startDate.toISOString(), 'to', today.toISOString());
+
+    // Initialize totals for each day of the week
+    const dayTotals = {
+      'Sunday': 0,
+      'Monday': 0,
+      'Tuesday': 0,
+      'Wednesday': 0,
+      'Thursday': 0,
+      'Friday': 0,
+      'Saturday': 0
+    };
+    const dayCounts = { ...dayTotals };
+
+    // Get sales data for the last 3 months
+    for (let i = 0; i < 3; i++) {
+      const month = today.getMonth() - i;
+      const year = today.getFullYear();
+      console.log(`Fetching data for month ${month + 1}, year ${year}`);
+      
+      try {
+        const salesData = await calculateCumulativeSales(month + 1, year);
+        console.log(`Received sales data for ${month + 1}/${year}:`, {
+          dates: salesData.dates.length,
+          dailyAmounts: salesData.dailyAmounts.length
+        });
+        
+        // Process each day's sales
+        salesData.dates.forEach((date, index) => {
+          const dayOfWeek = new Date(date).toLocaleDateString('en-US', { weekday: 'long' });
+          const dailyAmount = salesData.dailyAmounts[index];
+          dayTotals[dayOfWeek] += dailyAmount;
+          dayCounts[dayOfWeek]++;
+        });
+      } catch (error) {
+        console.error(`Error fetching data for month ${month + 1}:`, error);
+        // Continue with next month if one fails
+        continue;
+      }
+    }
+
+    console.log('Day totals:', dayTotals);
+    console.log('Day counts:', dayCounts);
+
+    // Calculate total sales across all days
+    const totalSales = Object.values(dayTotals).reduce((sum, val) => sum + val, 0);
+    console.log('Total sales:', totalSales);
+
+    // Calculate percentages
+    const dailyDistribution = {};
+    Object.keys(dayTotals).forEach(day => {
+      dailyDistribution[day] = totalSales > 0 ? dayTotals[day] / totalSales : 0;
+    });
+
+    console.log('Initial daily distribution:', dailyDistribution);
+
+    // Ensure percentages sum to 100
+    const totalPercentage = Object.values(dailyDistribution).reduce((sum, val) => sum + val, 0);
+    console.log('Initial total percentage:', totalPercentage);
+
+    if (totalPercentage !== 100 && totalPercentage > 0) {
+      // Add/subtract the difference from the day with the highest sales
+      const highestDay = Object.entries(dayTotals)
+        .reduce((a, b) => (a[1] > b[1] ? a : b))[0];
+      dailyDistribution[highestDay] += (100 - totalPercentage) / 100;
+      console.log('Adjusted daily distribution:', dailyDistribution);
+    }
+
+    // Send the response
+    console.log('Sending response with daily distribution:', dailyDistribution);
+    res.json({ dailyDistribution });
+  } catch (error) {
+    console.error('Error analyzing sales data:', error);
+    res.status(500).json({ error: 'Failed to analyze sales data' });
   }
 });
 

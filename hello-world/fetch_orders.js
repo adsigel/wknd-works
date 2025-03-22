@@ -44,21 +44,21 @@ export async function fetchOrders(year, month) {
             const url = `https://${cleanShopName}.myshopify.com/admin/api/2024-01/orders.json`;
             console.log('Making request to:', url);
             
-            const response = await axios.get(
+        const response = await axios.get(
                 url,
-                {
-                    headers: {
+            {
+                headers: {
                         "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
-                    },
-                    params: {
-                        processed_at_min: firstDay.toISOString(),
-                        processed_at_max: lastDay.toISOString(),
-                        status: "any",
+                },
+                params: {
+                    processed_at_min: firstDay.toISOString(),
+                    processed_at_max: lastDay.toISOString(),
+                    status: "any",
                         limit: 250,
                         ...(pageInfo && { page_info: pageInfo }),
-                    },
-                }
-            );
+                },
+            }
+        );
 
             const orders = response.data.orders;
             allOrders = [...allOrders, ...orders];
@@ -342,8 +342,8 @@ export async function calculateCumulativeSales(month, year = new Date().getFullY
 
     // Generate projected sales based on the actual month's data
     const projectedSales = Array(sortedDates.length).fill(8500); // Default goal
-
-    return {
+        
+        return {
       dates,
       dailySales: salesArray,
       dailyAmounts,
