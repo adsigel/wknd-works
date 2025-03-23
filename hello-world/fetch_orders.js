@@ -233,6 +233,9 @@ function getOpenDays(firstDay, lastDay) {
 
 // Replace with:
 function generateMockData(month, year) {
+  console.log('WARNING: Generating mock data for:', { month, year });
+  console.log('This indicates either missing Shopify credentials or an error occurred');
+  
   const dailySales = [];
   const dates = [];
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -255,12 +258,22 @@ function generateMockData(month, year) {
     dates.push(date.toISOString().split('T')[0]);
   }
 
-  return {
+  const result = {
     dailySales,
     dates,
     salesGoal: 8500,
     projectedSales: generateProjectedSales(daysInMonth)
   };
+
+  console.log('Mock data generated:', {
+    numberOfDays: dates.length,
+    firstDay: dates[0],
+    lastDay: dates[dates.length - 1],
+    firstDailySale: dailySales[0],
+    lastDailySale: dailySales[dailySales.length - 1]
+  });
+
+  return result;
 }
 
 // Helper function to generate projected sales based on distribution
@@ -300,13 +313,21 @@ function generateProjectedSales(daysInMonth) {
 export async function calculateCumulativeSales(month, year = new Date().getFullYear()) {
   try {
     // Check if we have Shopify credentials
+    console.log('Checking Shopify credentials...');
+    console.log('SHOPIFY_SHOP_NAME:', process.env.SHOPIFY_SHOP_NAME ? 'Set' : 'Not set');
+    console.log('SHOPIFY_ACCESS_TOKEN:', process.env.SHOPIFY_ACCESS_TOKEN ? 'Set (first 4 chars: ' + process.env.SHOPIFY_ACCESS_TOKEN.substring(0, 4) + '...)' : 'Not set');
+    
     if (!process.env.SHOPIFY_SHOP_NAME || !process.env.SHOPIFY_ACCESS_TOKEN) {
       console.log('No Shopify credentials found, using mock data');
       return generateMockData(month, year);
     }
 
+    console.log('Fetching orders for:', { month, year });
     const orders = await fetchOrders(year, month);
+    console.log('Fetched orders count:', orders.length);
+    
     const { firstDay, lastDay } = getMonthRange(year, month);
+    console.log('Date range:', { firstDay: firstDay.toISOString(), lastDay: lastDay.toISOString() });
 
     // Initialize daily sales for every day in the month
     let dailySales = {};
@@ -315,6 +336,7 @@ export async function calculateCumulativeSales(month, year = new Date().getFullY
       dailySales[dateStr] = 0;  // Initialize all days to 0
     }
 
+    console.log('Processing orders...');
     // Process orders and map them to the correct date
     orders.forEach((order) => {
       const orderDateUTC = new Date(order.processed_at);
@@ -341,11 +363,16 @@ export async function calculateCumulativeSales(month, year = new Date().getFullY
       salesArray.push(Number(cumulative.toFixed(2)));
     });
 
+    console.log('Daily amounts sample:', dailyAmounts.slice(0, 5));
+    console.log('Cumulative sales sample:', salesArray.slice(0, 5));
+
     // Get the sales goal for this month
+    console.log('Fetching sales goal...');
     const goalResponse = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/sales/goal`, {
       params: { month, year }
     });
     const salesGoal = goalResponse.data.goal || 0;
+    console.log('Sales goal:', salesGoal);
 
     // Generate projected sales based on the actual month's data
     const projectedSales = Array(sortedDates.length).fill(salesGoal);
@@ -359,7 +386,17 @@ export async function calculateCumulativeSales(month, year = new Date().getFullY
     };
 
   } catch (error) {
-    console.error('Error in calculateCumulativeSales:', error);
+    console.error('Error in calculateCumulativeSales:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      config: error.config,
+      response: {
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      }
+    });
     // If there's an error, fall back to mock data
     console.log('Falling back to mock data due to error');
     return generateMockData(month, year);
