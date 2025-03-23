@@ -23,35 +23,21 @@ console.log('MongoDB URI:', process.env.MONGODB_URI ? 'URI is set' : 'URI is not
 mongoose.connection.on('connected', () => {
   console.log('MongoDB connected successfully');
   console.log('Database name:', mongoose.connection.db.databaseName);
+  console.log('Connection state:', mongoose.connection.readyState);
 });
 
 mongoose.connection.on('error', (err) => {
-  console.error('MongoDB connection error:', err);
-});
-
-mongoose.connection.on('disconnected', () => {
-  console.log('MongoDB disconnected');
-});
-
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/wknd-dashboard', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverSelectionTimeoutMS: 30000, // Increase timeout to 30 seconds
-  socketTimeoutMS: 45000, // Socket timeout
-  connectTimeoutMS: 30000, // Connection timeout
-})
-.then(() => {
-  console.log('Successfully connected to MongoDB');
-  console.log('Database name:', mongoose.connection.db.databaseName);
-  console.log('Connection state:', mongoose.connection.readyState);
-})
-.catch(err => {
-  console.error('MongoDB connection error details:', {
+  console.error('MongoDB connection error:', {
     name: err.name,
     message: err.message,
     code: err.code,
     stack: err.stack
   });
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('MongoDB disconnected');
+  console.log('Connection state:', mongoose.connection.readyState);
 });
 
 const app = express();
@@ -99,6 +85,15 @@ app.get('/test', (req, res) => {
 
 // Middleware to parse JSON in request body (if needed)
 app.use(express.json());
+
+// Middleware to check MongoDB connection
+app.use((req, res, next) => {
+  if (mongoose.connection.readyState !== 1) {
+    console.error('MongoDB not connected. State:', mongoose.connection.readyState);
+    return res.status(503).json({ error: 'Database connection not available' });
+  }
+  next();
+});
 
 // Store the sales goals in memory (you might want to persist this in a database later)
 const salesGoals = new Map();
@@ -552,7 +547,44 @@ app.get('/api/sales/analyze', async (req, res) => {
   }
 });
 
-// Start the Express server
-app.listen(port, () => {
-  console.log(`Server is running on http://localhost:${port}`);
+// Connect to MongoDB and start server
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/wknd-dashboard', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+  serverApi: {
+    version: '1',
+    strict: true,
+    deprecationErrors: true,
+  },
+  serverSelectionTimeoutMS: 30000, // Increase timeout to 30 seconds
+  socketTimeoutMS: 45000, // Socket timeout
+  connectTimeoutMS: 30000, // Connection timeout
+  retryWrites: true,
+  w: 'majority'
+})
+.then(async () => {
+  try {
+    // Send a ping to confirm a successful connection
+    await mongoose.connection.db.command({ ping: 1 });
+    console.log('Successfully connected to MongoDB!');
+    console.log('Database name:', mongoose.connection.db.databaseName);
+    console.log('Connection state:', mongoose.connection.readyState);
+    
+    // Start the server only after successful MongoDB connection
+    app.listen(port, () => {
+      console.log(`Server is running on port ${port}`);
+    });
+  } catch (error) {
+    console.error('Error during MongoDB connection verification:', error);
+    process.exit(1);
+  }
+})
+.catch(err => {
+  console.error('MongoDB connection error details:', {
+    name: err.name,
+    message: err.message,
+    code: err.code,
+    stack: err.stack
+  });
+  process.exit(1); // Exit the process if MongoDB connection fails
 });
