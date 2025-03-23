@@ -4,7 +4,7 @@ const salesGoalSchema = new mongoose.Schema({
   date: {
     type: Date,
     required: true,
-    unique: true
+    index: true
   },
   goal: {
     type: Number,
@@ -14,6 +14,9 @@ const salesGoalSchema = new mongoose.Schema({
 }, {
   timestamps: true
 });
+
+// Create a compound index on date to ensure unique goals per month
+salesGoalSchema.index({ date: 1 }, { unique: true });
 
 const SalesGoal = mongoose.model('SalesGoal', salesGoalSchema);
 
