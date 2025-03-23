@@ -588,8 +588,10 @@ async function testMongoConnection() {
       strict: true,
       deprecationErrors: true,
     },
-    tls: true,
-    tlsCAFile: '/etc/ssl/certs/ca-certificates.crt'
+    directConnection: false,
+    retryWrites: true,
+    maxPoolSize: 10,
+    minPoolSize: 0
   });
 
   try {
@@ -623,13 +625,14 @@ testMongoConnection().then(success => {
       strict: true,
       deprecationErrors: true,
     },
+    directConnection: false,
+    maxPoolSize: 10,
+    minPoolSize: 0,
     serverSelectionTimeoutMS: 30000,
     socketTimeoutMS: 45000,
     connectTimeoutMS: 30000,
     retryWrites: true,
-    w: 'majority',
-    tls: true,
-    tlsCAFile: '/etc/ssl/certs/ca-certificates.crt'
+    w: 'majority'
   })
   .then(async () => {
     try {
