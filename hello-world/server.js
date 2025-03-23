@@ -21,10 +21,19 @@ dotenv.config({ path: '.env' });
 console.log('Starting server initialization...');
 console.log('Node version:', process.version);
 console.log('Environment:', process.env.NODE_ENV);
-console.log('MongoDB URI:', process.env.MONGODB_URI ? 'URI is set' : 'URI is not set');
-if (process.env.MONGODB_URI) {
+
+// Ensure TLS 1.2 is used by adding parameters to the URI if they're not present
+let mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/wknd-dashboard';
+if (mongoUri.includes('mongodb+srv://')) {
+  if (!mongoUri.includes('tlsVersion=')) {
+    mongoUri += (mongoUri.includes('?') ? '&' : '?') + 'tls=true&tlsVersion=TLS1_2';
+  }
+}
+
+console.log('MongoDB URI:', mongoUri ? 'URI is set' : 'URI is not set');
+if (mongoUri) {
   // Mask the password in the URI for security
-  const maskedUri = process.env.MONGODB_URI.replace(
+  const maskedUri = mongoUri.replace(
     /mongodb\+srv:\/\/([^:]+):([^@]+)@/,
     'mongodb+srv://$1:****@'
   );
@@ -578,7 +587,7 @@ app.get('/api/sales/analyze', async (req, res) => {
 // Test direct MongoDB connection first
 async function testMongoConnection() {
   console.log('Testing direct MongoDB connection...');
-  const client = new MongoClient(process.env.MONGODB_URI, {
+  const client = new MongoClient(mongoUri, {
     serverApi: {
       version: '1',
       strict: true,
@@ -611,7 +620,7 @@ testMongoConnection().then(success => {
     process.exit(1);
   }
 
-  mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/wknd-dashboard', {
+  mongoose.connect(mongoUri, {
     serverApi: {
       version: '1',
       strict: true,
