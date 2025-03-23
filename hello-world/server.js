@@ -7,7 +7,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
 import SalesGoal from './backend/models/SalesGoal.js';
-import fs from 'fs';
+import Settings from './backend/models/Settings.js';
 import Order from './backend/models/Order.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -16,12 +16,43 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: '.env' });
 
 // MongoDB connection
+console.log('Attempting to connect to MongoDB...');
+console.log('MongoDB URI:', process.env.MONGODB_URI ? 'URI is set' : 'URI is not set');
+
+// Monitor MongoDB connection state
+mongoose.connection.on('connected', () => {
+  console.log('MongoDB connected successfully');
+  console.log('Database name:', mongoose.connection.db.databaseName);
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('MongoDB connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+  console.log('MongoDB disconnected');
+});
+
 mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/wknd-dashboard', {
   useNewUrlParser: true,
-  useUnifiedTopology: true
+  useUnifiedTopology: true,
+  serverSelectionTimeoutMS: 30000, // Increase timeout to 30 seconds
+  socketTimeoutMS: 45000, // Socket timeout
+  connectTimeoutMS: 30000, // Connection timeout
 })
-.then(() => console.log('Connected to MongoDB'))
-.catch(err => console.error('MongoDB connection error:', err));
+.then(() => {
+  console.log('Successfully connected to MongoDB');
+  console.log('Database name:', mongoose.connection.db.databaseName);
+  console.log('Connection state:', mongoose.connection.readyState);
+})
+.catch(err => {
+  console.error('MongoDB connection error details:', {
+    name: err.name,
+    message: err.message,
+    code: err.code,
+    stack: err.stack
+  });
+});
 
 const app = express();
 const port = process.env.PORT || 5001;
@@ -105,20 +136,37 @@ app.get('/api/sales/goals', async (req, res) => {
 
 // Get sales goal for a specific month
 app.get('/api/sales/goal', async (req, res) => {
+  const { month, year } = req.query;
+  
+  if (!month || !year) {
+    return res.status(400).json({ error: 'Month and year are required' });
+  }
+
   try {
-    const month = parseInt(req.query.month);
-    const year = parseInt(req.query.year) || new Date().getFullYear();
+    console.log('Fetching sales goal for:', { month, year });
+    console.log('MongoDB connection state:', mongoose.connection.readyState);
     
-    if (!month || month < 1 || month > 12) {
-      return res.status(400).json({ error: 'Invalid month' });
-    }
-    
+    // Create a date object for the first day of the month
     const date = new Date(year, month - 1, 1);
-    const goal = await SalesGoal.findOne({ date });
-    
-    res.json({ goal: goal ? goal.goal : 8500 });
+    console.log('Looking for goal with date:', date);
+
+    const salesGoal = await SalesGoal.findOne({ date });
+    console.log('Found sales goal:', salesGoal);
+
+    if (!salesGoal) {
+      console.log('No sales goal found for this month');
+      return res.json({ goal: 0 });
+    }
+
+    res.json({ goal: salesGoal.goal });
   } catch (error) {
-    console.error('Error fetching sales goal:', error);
+    console.error('Error fetching sales goal:', {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+      connectionState: mongoose.connection.readyState
+    });
     res.status(500).json({ error: 'Failed to fetch sales goal' });
   }
 });
@@ -196,8 +244,6 @@ app.get('/api/sales/recommend-projection', (req, res) => {
 //   }
 // });
 
-const SETTINGS_FILE = path.join(__dirname, 'dashboard_settings.json');
-
 // Default settings
 const defaultSettings = {
   chartSettings: {
@@ -228,42 +274,29 @@ const defaultSettings = {
   }
 };
 
-// Load settings from file or use defaults
-let dashboardSettings;
-try {
-  if (fs.existsSync(SETTINGS_FILE)) {
-    const fileContent = fs.readFileSync(SETTINGS_FILE, 'utf8');
-    dashboardSettings = JSON.parse(fileContent);
-    console.log('Loaded settings from file');
-  } else {
-    dashboardSettings = defaultSettings;
-    // Save default settings to file
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(defaultSettings, null, 2));
-    console.log('Created new settings file with defaults');
-  }
-} catch (error) {
-  console.error('Error loading settings:', error);
-  dashboardSettings = defaultSettings;
-}
-
-// Helper function to save settings
-const saveSettings = () => {
-  try {
-    fs.writeFileSync(SETTINGS_FILE, JSON.stringify(dashboardSettings, null, 2));
-    console.log('Settings saved successfully');
-  } catch (error) {
-    console.error('Error saving settings:', error);
-  }
-};
-
 // Get current dashboard settings
-app.get('/api/settings', (req, res) => {
-  console.log('GET /api/settings - Sending settings:', dashboardSettings);
-  res.json(dashboardSettings);
+app.get('/api/settings', async (req, res) => {
+  try {
+    console.log('GET /api/settings - Fetching settings from database');
+    let settings = await Settings.findOne();
+    
+    if (!settings) {
+      // If no settings exist, create default settings
+      settings = new Settings(defaultSettings);
+      await settings.save();
+      console.log('Created new settings with defaults');
+    }
+    
+    console.log('Sending settings:', settings);
+    res.json(settings);
+  } catch (error) {
+    console.error('Error fetching settings:', error);
+    res.status(500).json({ error: 'Failed to fetch settings' });
+  }
 });
 
 // Update chart settings
-app.post('/api/settings/chart', (req, res) => {
+app.post('/api/settings/chart', async (req, res) => {
   try {
     console.log('POST /api/settings/chart - Received body:', req.body);
     const newSettings = req.body;
@@ -281,10 +314,18 @@ app.post('/api/settings/chart', (req, res) => {
       }
     }
     
-    dashboardSettings.chartSettings = newSettings;
-    saveSettings(); // Save to file
-    console.log('Updated chart settings:', dashboardSettings.chartSettings);
-    res.json({ success: true, settings: dashboardSettings.chartSettings });
+    // Find existing settings or create new ones
+    let settings = await Settings.findOne();
+    if (!settings) {
+      settings = new Settings(defaultSettings);
+    }
+    
+    // Update chart settings
+    settings.chartSettings = newSettings;
+    await settings.save();
+    
+    console.log('Updated chart settings:', settings.chartSettings);
+    res.json({ success: true, settings: settings.chartSettings });
   } catch (error) {
     console.error('Error updating chart settings:', error);
     console.error('Request body:', req.body);
@@ -293,7 +334,7 @@ app.post('/api/settings/chart', (req, res) => {
 });
 
 // Update projection settings
-app.post('/api/settings/projection', (req, res) => {
+app.post('/api/settings/projection', async (req, res) => {
   try {
     console.log('POST /api/settings/projection - Received body:', req.body);
     const newSettings = req.body;
@@ -317,10 +358,18 @@ app.post('/api/settings/projection', (req, res) => {
       throw new Error(`Projection percentages must sum to 100% (got ${total.toFixed(2)}%)`);
     }
     
-    dashboardSettings.projectionSettings = newSettings;
-    saveSettings(); // Save to file
-    console.log('Updated projection settings:', dashboardSettings.projectionSettings);
-    res.json({ success: true, settings: dashboardSettings.projectionSettings });
+    // Find existing settings or create new ones
+    let settings = await Settings.findOne();
+    if (!settings) {
+      settings = new Settings(defaultSettings);
+    }
+    
+    // Update projection settings
+    settings.projectionSettings = newSettings;
+    await settings.save();
+    
+    console.log('Updated projection settings:', settings.projectionSettings);
+    res.json({ success: true, settings: settings.projectionSettings });
   } catch (error) {
     console.error('Error updating projection settings:', error);
     console.error('Request body:', req.body);
