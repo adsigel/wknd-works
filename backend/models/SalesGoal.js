@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+const mongoose = require('mongoose');
 
 const salesGoalSchema = new mongoose.Schema({
   date: {
@@ -20,4 +20,4 @@ salesGoalSchema.index({ date: 1 }, { unique: true });
 
 const SalesGoal = mongoose.model('SalesGoal', salesGoalSchema);
 
-export default SalesGoal; 
+module.exports = SalesGoal; 

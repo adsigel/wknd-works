@@ -311,34 +311,18 @@ button[type="button"]:hover {
 }
 
 .analyze-button {
-  padding: 8px 16px;
-  background-color: #2c3d2f;
+  background-color: #8fab9e;
   color: white;
   border: none;
+  padding: 0.5rem 1rem;
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  font-size: 0.9rem;
+  transition: background-color 0.2s ease;
 }
 
-.analyze-button:hover:not(:disabled) {
-  background-color: #3c4d3f;
-}
-
-.analyze-button:disabled {
-  background-color: #cccccc;
-  cursor: not-allowed;
-}
-
-.analyze-button.analyzing {
-  background-color: #666666;
-}
-
-.error-message {
-  color: #d2815f;
-  margin: 10px 0;
-  padding: 8px;
-  background-color: rgba(210, 129, 95, 0.1);
-  border-radius: 4px;
+.analyze-button:hover {
+  background-color: #7a8f7f;
 }
 
 .total-percentage {
@@ -355,6 +339,11 @@ button[type="button"]:hover {
 .total-percentage.invalid {
   color: #c62828;
   background-color: #ffebee;
+}
+
+.error-message {
+  color: #c62828;
+  font-size: 0.9em;
 }
 
 .invalid input {

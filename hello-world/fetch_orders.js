@@ -44,21 +44,21 @@ export async function fetchOrders(year, month) {
             const url = `https://${cleanShopName}.myshopify.com/admin/api/2024-01/orders.json`;
             console.log('Making request to:', url);
             
-        const response = await axios.get(
+            const response = await axios.get(
                 url,
-            {
-                headers: {
+                {
+                    headers: {
                         "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
-                },
-                params: {
-                    processed_at_min: firstDay.toISOString(),
-                    processed_at_max: lastDay.toISOString(),
-                    status: "any",
+                    },
+                    params: {
+                        processed_at_min: firstDay.toISOString(),
+                        processed_at_max: lastDay.toISOString(),
+                        status: "any",
                         limit: 250,
                         ...(pageInfo && { page_info: pageInfo }),
-                },
-            }
-        );
+                    },
+                }
+            );
 
             const orders = response.data.orders;
             allOrders = [...allOrders, ...orders];
@@ -340,14 +340,20 @@ export async function calculateCumulativeSales(month, year = new Date().getFullY
       salesArray.push(Number(cumulative.toFixed(2)));
     });
 
+    // Get the sales goal for this month
+    const goalResponse = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/sales/goal`, {
+      params: { month, year }
+    });
+    const salesGoal = goalResponse.data.goal || 0;
+
     // Generate projected sales based on the actual month's data
-    const projectedSales = Array(sortedDates.length).fill(8500); // Default goal
-        
-        return {
+    const projectedSales = Array(sortedDates.length).fill(salesGoal);
+
+    return {
       dates,
       dailySales: salesArray,
       dailyAmounts,
-      salesGoal: 8500, // Default goal
+      salesGoal,
       projectedSales
     };
 

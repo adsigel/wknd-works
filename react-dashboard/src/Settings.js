@@ -36,12 +36,6 @@ const ColorInput = ({ label, color, onChange }) => {
     return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
 
-  // Get current opacity from color string
-  const getOpacity = (colorStr) => {
-    const match = colorStr.match(/[\d.]+\)$/);
-    return match ? parseFloat(match[0]) : 1;
-  };
-
   const [hexValue, setHexValue] = useState(rgbaToHex(color));
 
   const handleHexChange = (e) => {
@@ -52,7 +46,7 @@ const ColorInput = ({ label, color, onChange }) => {
     if (/^#[0-9A-Fa-f]{6}$/.test(newHex)) {
       // If this is a background color (has opacity), preserve the opacity
       if (label.includes('Fill')) {
-        const currentOpacity = getOpacity(color);
+        const currentOpacity = parseFloat(color.match(/[\d.]+\)$/)[0]);
         onChange(hexToRgba(newHex, currentOpacity));
       } else {
         onChange(hexToRgba(newHex, 1));
@@ -66,7 +60,7 @@ const ColorInput = ({ label, color, onChange }) => {
     
     // If this is a background color (has opacity), preserve the opacity
     if (label.includes('Fill')) {
-      const currentOpacity = getOpacity(color);
+      const currentOpacity = parseFloat(color.match(/[\d.]+\)$/)[0]);
       onChange(hexToRgba(newHex, currentOpacity));
     } else {
       onChange(hexToRgba(newHex, 1));

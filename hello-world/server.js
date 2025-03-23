@@ -587,11 +587,7 @@ async function testMongoConnection() {
       version: '1',
       strict: true,
       deprecationErrors: true,
-    },
-    directConnection: false,
-    retryWrites: true,
-    maxPoolSize: 10,
-    minPoolSize: 0
+    }
   });
 
   try {
@@ -625,14 +621,8 @@ testMongoConnection().then(success => {
       strict: true,
       deprecationErrors: true,
     },
-    directConnection: false,
-    maxPoolSize: 10,
-    minPoolSize: 0,
     serverSelectionTimeoutMS: 30000,
-    socketTimeoutMS: 45000,
-    connectTimeoutMS: 30000,
-    retryWrites: true,
-    w: 'majority'
+    connectTimeoutMS: 30000
   })
   .then(async () => {
     try {
