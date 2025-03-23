@@ -16,8 +16,26 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: '.env' });
 
 // MongoDB connection
-console.log('Attempting to connect to MongoDB...');
+console.log('Starting server initialization...');
+console.log('Node version:', process.version);
+console.log('Environment:', process.env.NODE_ENV);
 console.log('MongoDB URI:', process.env.MONGODB_URI ? 'URI is set' : 'URI is not set');
+console.log('PORT:', process.env.PORT || 5001);
+
+// Add error handlers for uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', {
+    name: error.name,
+    message: error.message,
+    stack: error.stack
+  });
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
 
 // Monitor MongoDB connection state
 mongoose.connection.on('connected', () => {
