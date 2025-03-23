@@ -583,7 +583,11 @@ async function testMongoConnection() {
       version: '1',
       strict: true,
       deprecationErrors: true,
-    }
+    },
+    tls: true,
+    tlsInsecure: false,
+    minTlsVersion: 'TLSv1.2',
+    maxTlsVersion: 'TLSv1.3'
   });
 
   try {
@@ -621,7 +625,11 @@ testMongoConnection().then(success => {
     socketTimeoutMS: 45000,
     connectTimeoutMS: 30000,
     retryWrites: true,
-    w: 'majority'
+    w: 'majority',
+    tls: true,
+    tlsInsecure: false,
+    minTlsVersion: 'TLSv1.2',
+    maxTlsVersion: 'TLSv1.3'
   })
   .then(async () => {
     try {
