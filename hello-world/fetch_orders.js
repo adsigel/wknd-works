@@ -367,12 +367,22 @@ export async function calculateCumulativeSales(month, year = new Date().getFullY
     console.log('Cumulative sales sample:', salesArray.slice(0, 5));
 
     // Get the sales goal for this month
-    console.log('Fetching sales goal...');
-    const goalResponse = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/sales/goal`, {
-      params: { month, year }
-    });
-    const salesGoal = goalResponse.data.goal || 0;
-    console.log('Sales goal:', salesGoal);
+    let salesGoal = 8500; // Default value
+    try {
+      console.log('Fetching sales goal...');
+      // Use window.location.origin in browser, fallback to environment variable in Node
+      const apiBase = typeof window !== 'undefined' ? window.location.origin : (process.env.API_URL || 'http://localhost:5001');
+      console.log('Using API base URL:', apiBase);
+      
+      const goalResponse = await axios.get(`${apiBase}/api/sales/goal`, {
+        params: { month, year }
+      });
+      salesGoal = goalResponse.data.goal || salesGoal;
+      console.log('Sales goal fetched:', salesGoal);
+    } catch (error) {
+      console.error('Error fetching sales goal, using default:', error.message);
+      // Continue with default sales goal
+    }
 
     // Generate projected sales based on the actual month's data
     const projectedSales = Array(sortedDates.length).fill(salesGoal);
@@ -397,8 +407,8 @@ export async function calculateCumulativeSales(month, year = new Date().getFullY
         data: error.response?.data
       }
     });
-    // If there's an error, fall back to mock data
-    console.log('Falling back to mock data due to error');
+    // If there's an error with Shopify, fall back to mock data
+    console.log('Falling back to mock data due to Shopify API error');
     return generateMockData(month, year);
   }
 }
