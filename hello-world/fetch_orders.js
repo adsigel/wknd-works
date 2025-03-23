@@ -55,6 +55,7 @@ export async function fetchOrders(year, month) {
                         processed_at_max: lastDay.toISOString(),
                         status: "any",
                         limit: 250,
+                        fields: 'processed_at,total_price',
                         ...(pageInfo && { page_info: pageInfo }),
                     },
                 }
@@ -139,11 +140,11 @@ export async function getOrders(startDate) {
 
         // Initial request parameters
         const initialParams = {
-            created_at_min: startDate,
+            processed_at_min: startDate,
             status: "any",
             limit: 250,
-            fields: 'created_at,total_price',
-            order: 'created_at asc'
+            fields: 'processed_at,total_price',
+            order: 'processed_at asc'
         };
 
         while (hasNextPage) {
@@ -169,7 +170,7 @@ export async function getOrders(startDate) {
 
             // Process this page's orders into daily totals
             response.data.orders.forEach(order => {
-                const date = order.created_at.split('T')[0];
+                const date = order.processed_at.split('T')[0];
                 dailyTotals[date] = (dailyTotals[date] || 0) + parseFloat(order.total_price);
             });
 
