@@ -22,13 +22,8 @@ console.log('Starting server initialization...');
 console.log('Node version:', process.version);
 console.log('Environment:', process.env.NODE_ENV);
 
-// Ensure TLS 1.2 is used by adding parameters to the URI if they're not present
-let mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/wknd-dashboard';
-if (mongoUri.includes('mongodb+srv://')) {
-  if (!mongoUri.includes('tlsVersion=')) {
-    mongoUri += (mongoUri.includes('?') ? '&' : '?') + 'tls=true&tlsVersion=TLS1_2';
-  }
-}
+// Use the MongoDB URI as-is without modifications
+const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/wknd-dashboard';
 
 console.log('MongoDB URI:', mongoUri ? 'URI is set' : 'URI is not set');
 if (mongoUri) {
