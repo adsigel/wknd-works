@@ -587,7 +587,9 @@ async function testMongoConnection() {
       version: '1',
       strict: true,
       deprecationErrors: true,
-    }
+    },
+    tls: true,
+    tlsCAFile: '/etc/ssl/certs/ca-certificates.crt'
   });
 
   try {
@@ -625,7 +627,9 @@ testMongoConnection().then(success => {
     socketTimeoutMS: 45000,
     connectTimeoutMS: 30000,
     retryWrites: true,
-    w: 'majority'
+    w: 'majority',
+    tls: true,
+    tlsCAFile: '/etc/ssl/certs/ca-certificates.crt'
   })
   .then(async () => {
     try {
