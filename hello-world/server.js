@@ -583,7 +583,11 @@ async function testMongoConnection() {
       version: '1',
       strict: true,
       deprecationErrors: true,
-    }
+    },
+    ssl: true,
+    tls: true,
+    tlsAllowInvalidCertificates: false,
+    tlsAllowInvalidHostnames: false
   });
 
   try {
@@ -621,7 +625,11 @@ testMongoConnection().then(success => {
     socketTimeoutMS: 45000,
     connectTimeoutMS: 30000,
     retryWrites: true,
-    w: 'majority'
+    w: 'majority',
+    ssl: true,
+    tls: true,
+    tlsAllowInvalidCertificates: false,
+    tlsAllowInvalidHostnames: false
   })
   .then(async () => {
     try {
