@@ -9,6 +9,8 @@ import mongoose from 'mongoose';
 import SalesGoal from './backend/models/SalesGoal.js';
 import Settings from './backend/models/Settings.js';
 import Order from './backend/models/Order.js';
+import { MongoClient } from 'mongodb';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,6 +22,14 @@ console.log('Starting server initialization...');
 console.log('Node version:', process.version);
 console.log('Environment:', process.env.NODE_ENV);
 console.log('MongoDB URI:', process.env.MONGODB_URI ? 'URI is set' : 'URI is not set');
+if (process.env.MONGODB_URI) {
+  // Mask the password in the URI for security
+  const maskedUri = process.env.MONGODB_URI.replace(
+    /mongodb\+srv:\/\/([^:]+):([^@]+)@/,
+    'mongodb+srv://$1:****@'
+  );
+  console.log('MongoDB URI (masked):', maskedUri);
+}
 console.log('PORT:', process.env.PORT || 5001);
 
 // Add error handlers for uncaught exceptions
@@ -565,44 +575,76 @@ app.get('/api/sales/analyze', async (req, res) => {
   }
 });
 
-// Connect to MongoDB and start server
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/wknd-dashboard', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-  serverApi: {
-    version: '1',
-    strict: true,
-    deprecationErrors: true,
-  },
-  serverSelectionTimeoutMS: 30000, // Increase timeout to 30 seconds
-  socketTimeoutMS: 45000, // Socket timeout
-  connectTimeoutMS: 30000, // Connection timeout
-  retryWrites: true,
-  w: 'majority'
-})
-.then(async () => {
+// Test direct MongoDB connection first
+async function testMongoConnection() {
+  console.log('Testing direct MongoDB connection...');
+  const client = new MongoClient(process.env.MONGODB_URI, {
+    serverApi: {
+      version: '1',
+      strict: true,
+      deprecationErrors: true,
+    }
+  });
+
   try {
-    // Send a ping to confirm a successful connection
-    await mongoose.connection.db.command({ ping: 1 });
-    console.log('Successfully connected to MongoDB!');
-    console.log('Database name:', mongoose.connection.db.databaseName);
-    console.log('Connection state:', mongoose.connection.readyState);
-    
-    // Start the server only after successful MongoDB connection
-    app.listen(port, () => {
-      console.log(`Server is running on port ${port}`);
-    });
+    await client.connect();
+    console.log('Direct MongoDB connection successful!');
+    await client.db().command({ ping: 1 });
+    console.log('Ping successful!');
+    await client.close();
+    return true;
   } catch (error) {
-    console.error('Error during MongoDB connection verification:', error);
+    console.error('Direct MongoDB connection test failed:', {
+      name: error.name,
+      message: error.message,
+      code: error.code,
+      stack: error.stack
+    });
+    return false;
+  }
+}
+
+// Connect to MongoDB and start server
+testMongoConnection().then(success => {
+  if (!success) {
+    console.error('Failed to connect to MongoDB. Exiting...');
     process.exit(1);
   }
-})
-.catch(err => {
-  console.error('MongoDB connection error details:', {
-    name: err.name,
-    message: err.message,
-    code: err.code,
-    stack: err.stack
+
+  mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/wknd-dashboard', {
+    serverApi: {
+      version: '1',
+      strict: true,
+      deprecationErrors: true,
+    },
+    serverSelectionTimeoutMS: 30000,
+    socketTimeoutMS: 45000,
+    connectTimeoutMS: 30000,
+    retryWrites: true,
+    w: 'majority'
+  })
+  .then(async () => {
+    try {
+      await mongoose.connection.db.command({ ping: 1 });
+      console.log('Successfully connected to MongoDB!');
+      console.log('Database name:', mongoose.connection.db.databaseName);
+      console.log('Connection state:', mongoose.connection.readyState);
+      
+      app.listen(port, () => {
+        console.log(`Server is running on port ${port}`);
+      });
+    } catch (error) {
+      console.error('Error during MongoDB connection verification:', error);
+      process.exit(1);
+    }
+  })
+  .catch(err => {
+    console.error('MongoDB connection error details:', {
+      name: err.name,
+      message: err.message,
+      code: err.code,
+      stack: err.stack
+    });
+    process.exit(1);
   });
-  process.exit(1); // Exit the process if MongoDB connection fails
 });
