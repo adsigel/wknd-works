@@ -31,7 +31,7 @@ async function createOrder(orderDate) {
                 id: 23048875802991
             },
             currency: "USD",
-            total_price: "499.95"
+            total_price: "699.95"
         }
     };
 
@@ -54,7 +54,7 @@ async function createOrder(orderDate) {
 
 // Function to generate multiple orders with sequential dates starting from March 1st
 async function createMultipleOrders(count) {
-    let currentDate = new Date("2025-02-11"); // Start on March 1st, 2025
+    let currentDate = new Date("2025-03-26"); // Start on March 1st, 2025
 
     for (let i = 0; i < count; i++) {
         const orderDate = currentDate.toISOString(); // Format as ISO string for Shopify API

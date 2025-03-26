@@ -627,38 +627,60 @@ const SalesChart = () => {
           <h3 style={{ margin: '0 0 15px 0', color: '#2c3d2f' }}>Stats</h3>
           
           <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            <div>
-              <div style={{ fontSize: '14px', color: '#666' }}>Today's Sales Goal</div>
-              <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#2c3d2f' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '14px', color: '#666', marginBottom: '4px' }}>Today's Sales Goal</div>
+              <div style={{ 
+                fontSize: '18px', 
+                fontWeight: 'bold', 
+                color: '#2c3d2f', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                gap: '8px' 
+              }}>
                 {formatCurrency(stats.todayGoal)}
+                {stats.dollarsToTarget <= 0 && <span role="img" aria-label="celebration">🎉</span>}
               </div>
             </div>
 
-            <div>
-              <div style={{ fontSize: '14px', color: '#666' }}>$ to Target</div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '14px', color: '#666', marginBottom: '4px' }}>$ to Target</div>
               <div style={{ 
                 fontSize: '18px', 
                 fontWeight: 'bold',
-                color: stats.dollarsToTarget > 0 ? '#d2815f' : '#8fab9e'
+                color: stats.dollarsToTarget > 0 ? '#d2815f' : '#8fab9e',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center'
               }}>
                 {formatCurrency(Math.abs(stats.dollarsToTarget))}
                 {stats.dollarsToTarget > 0 ? ' under' : ' over'}
               </div>
             </div>
 
-            <div>
-              <div style={{ fontSize: '14px', color: '#666' }}>Days Hit Target</div>
-              <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#2c3d2f' }}>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '14px', color: '#666', marginBottom: '4px' }}>Days Hit Target</div>
+              <div style={{ 
+                fontSize: '18px', 
+                fontWeight: 'bold', 
+                color: '#2c3d2f',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center'
+              }}>
                 {stats.daysHit} of {stats.totalOpenDays} days
               </div>
             </div>
 
-            <div>
-              <div style={{ fontSize: '14px', color: '#666' }}>$ from Plan</div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: '14px', color: '#666', marginBottom: '4px' }}>$ from Plan</div>
               <div style={{ 
                 fontSize: '18px', 
                 fontWeight: 'bold',
-                color: stats.dollarsFromPlan >= 0 ? '#8fab9e' : '#d2815f'
+                color: stats.dollarsFromPlan >= 0 ? '#8fab9e' : '#d2815f',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center'
               }}>
                 {formatCurrency(Math.abs(stats.dollarsFromPlan))}
                 {stats.dollarsFromPlan >= 0 ? ' ahead' : ' behind'}
