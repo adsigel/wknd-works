@@ -511,12 +511,17 @@ const SalesChart = () => {
     let daysHit = 0;
     let totalOpenDays = 0;
     
-    // Calculate today's goal
+    // Calculate today's goal and actual sales
     const today = new Date();
     const dayOfWeek = today.getDay();
     const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek];
     const dayPercentage = (projectionSettings[dayName] || 0) / monthPercentageTotal;
     const todayGoal = salesGoal * dayPercentage;
+    
+    // Calculate today's actual sales (difference between today and yesterday's total)
+    const yesterdayTotal = lastDayIndex > 0 ? (dailySales[lastDayIndex - 1] || 0) : 0;
+    const todaySales = currentTotal - yesterdayTotal;
+    const todayGoalMet = todaySales >= todayGoal;
     
     allDaysInMonth.forEach((day, index) => {
       // Only count days up to current day
@@ -556,7 +561,8 @@ const SalesChart = () => {
       daysHit,
       totalOpenDays,
       dollarsFromPlan,
-      todayGoal
+      todayGoal,
+      todayGoalMet
     };
   };
 
@@ -668,7 +674,7 @@ const SalesChart = () => {
                 gap: '8px' 
               }}>
                 {formatCurrency(stats.todayGoal)}
-                {stats.dollarsToTarget <= 0 && <span role="img" aria-label="celebration">🎉</span>}
+                {stats.todayGoalMet && <span role="img" aria-label="celebration">🎉</span>}
               </div>
             </div>
 
