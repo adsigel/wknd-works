@@ -679,7 +679,7 @@ const SalesChart = () => {
             </div>
 
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '14px', color: '#666', marginBottom: '4px' }}>$ to Target</div>
+              <div style={{ fontSize: '14px', color: '#666', marginBottom: '4px' }}>$ to Monthly Goal</div>
               <div style={{ 
                 fontSize: '18px', 
                 fontWeight: 'bold',
@@ -708,7 +708,7 @@ const SalesChart = () => {
             </div>
 
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '14px', color: '#666', marginBottom: '4px' }}>$ from Plan</div>
+              <div style={{ fontSize: '14px', color: '#666', marginBottom: '4px' }}>$ from Day-to-Day Projection</div>
               <div style={{ 
                 fontSize: '18px', 
                 fontWeight: 'bold',
