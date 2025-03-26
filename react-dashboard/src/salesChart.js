@@ -89,22 +89,28 @@ const SalesChart = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Load settings from backend when component mounts
+  // Load settings when component mounts
   useEffect(() => {
     const loadSettings = async () => {
       try {
+        console.log('Loading settings...');
         const response = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/settings`);
-        setChartSettings(response.data.chartSettings);
-        setProjectionSettings(response.data.projectionSettings);
+        console.log('Settings loaded:', response.data);
+        if (response.data.projectionSettings) {
+          setProjectionSettings(response.data.projectionSettings);
+        }
+        if (response.data.chartSettings) {
+          setChartSettings(response.data.chartSettings);
+        }
       } catch (error) {
         console.error('Error loading settings:', error);
-        // Fall back to defaults if we can't load from server
-        setChartSettings(defaultChartSettings);
+        // Fall back to defaults if we can't load settings
         setProjectionSettings(defaultProjectionSettings);
       }
     };
+
     loadSettings();
-  }, []);
+  }, []); // Empty dependency array means this runs once when component mounts
 
   const handleChartSettingsChange = async (newSettings) => {
     try {
@@ -123,18 +129,41 @@ const SalesChart = () => {
 
   const handleProjectionSettingsChange = async (newSettings) => {
     try {
+      console.log('Saving projection settings:', newSettings);
       const response = await axios.post(
         `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/settings/projection`,
         newSettings
       );
+      
       if (response.data.success) {
+        console.log('Successfully saved projection settings');
         setProjectionSettings(newSettings);
         // Refresh sales data to update projections
         fetchSalesData(selectedMonth, selectedYear);
+      } else {
+        console.error('Failed to save projection settings:', response.data);
+        // Revert to previous settings if save failed
+        const settingsResponse = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/settings`);
+        if (settingsResponse.data.projectionSettings) {
+          setProjectionSettings(settingsResponse.data.projectionSettings);
+        }
       }
     } catch (error) {
-      console.error('Error saving projection settings:', error);
-      // Optionally show error to user
+      console.error('Error saving projection settings:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      });
+      // Revert to previous settings on error
+      try {
+        const settingsResponse = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/settings`);
+        if (settingsResponse.data.projectionSettings) {
+          setProjectionSettings(settingsResponse.data.projectionSettings);
+        }
+      } catch (e) {
+        console.error('Error reverting settings:', e);
+      }
     }
   };
 
