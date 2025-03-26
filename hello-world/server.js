@@ -164,6 +164,7 @@ app.get('/api/sales/goals', async (req, res) => {
 // Get sales goal for a specific month
 app.get('/api/sales/goal', async (req, res) => {
   const { month, year } = req.query;
+  const DEFAULT_MONTHLY_GOAL = 8500;  // Define default goal
   
   if (!month || !year) {
     return res.status(400).json({ error: 'Month and year are required' });
@@ -181,8 +182,8 @@ app.get('/api/sales/goal', async (req, res) => {
     console.log('Found sales goal:', salesGoal);
 
     if (!salesGoal) {
-      console.log('No sales goal found for this month');
-      return res.json({ goal: 0 });
+      console.log('No sales goal found for this month, using default:', DEFAULT_MONTHLY_GOAL);
+      return res.json({ goal: DEFAULT_MONTHLY_GOAL });
     }
 
     res.json({ goal: salesGoal.goal });
@@ -271,51 +272,23 @@ app.get('/api/sales/recommend-projection', (req, res) => {
 //   }
 // });
 
-// Default settings
-const defaultSettings = {
-  chartSettings: {
-    'Daily Sales': {
-      backgroundColor: 'rgba(44, 61, 47, 0.6)',
-      borderColor: 'rgba(44, 61, 47, 1)',
-      borderWidth: 1
-    },
-    'Projected Sales': {
-      backgroundColor: 'rgba(210, 129, 95, 0.2)',
-      borderColor: 'rgba(210, 129, 95, 1)',
-      borderWidth: 2
-    },
-    'Sales Goal': {
-      backgroundColor: 'rgba(143, 171, 158, 0.2)',
-      borderColor: 'rgba(143, 171, 158, 1)',
-      borderWidth: 3
-    }
-  },
-  projectionSettings: {
-    'Monday': 0,
-    'Tuesday': 0,
-    'Wednesday': 20,
-    'Thursday': 20,
-    'Friday': 20,
-    'Saturday': 20,
-    'Sunday': 20
-  }
-};
-
-// Get current dashboard settings
+// Get settings
 app.get('/api/settings', async (req, res) => {
   try {
-    console.log('GET /api/settings - Fetching settings from database');
+    console.log('Fetching settings...');
     let settings = await Settings.findOne();
     
     if (!settings) {
       // If no settings exist, create default settings
-      settings = new Settings(defaultSettings);
+      settings = new Settings();
       await settings.save();
-      console.log('Created new settings with defaults');
+      console.log('Created default settings');
     }
     
-    console.log('Sending settings:', settings);
-    res.json(settings);
+    res.json({
+      chartSettings: settings.chartSettings,
+      projectionSettings: settings.projectionSettings
+    });
   } catch (error) {
     console.error('Error fetching settings:', error);
     res.status(500).json({ error: 'Failed to fetch settings' });
@@ -325,82 +298,40 @@ app.get('/api/settings', async (req, res) => {
 // Update chart settings
 app.post('/api/settings/chart', async (req, res) => {
   try {
-    console.log('POST /api/settings/chart - Received body:', req.body);
-    const newSettings = req.body;
-    
-    // Validate the structure of newSettings
-    if (!newSettings || typeof newSettings !== 'object') {
-      throw new Error('Invalid settings format');
-    }
-    
-    // Ensure all required series are present
-    const requiredSeries = ['Daily Sales', 'Projected Sales', 'Sales Goal'];
-    for (const series of requiredSeries) {
-      if (!newSettings[series]) {
-        throw new Error(`Missing settings for ${series}`);
-      }
-    }
-    
-    // Find existing settings or create new ones
+    console.log('Updating chart settings:', req.body);
     let settings = await Settings.findOne();
+    
     if (!settings) {
-      settings = new Settings(defaultSettings);
+      settings = new Settings();
     }
     
-    // Update chart settings
-    settings.chartSettings = newSettings;
+    settings.chartSettings = req.body;
     await settings.save();
     
-    console.log('Updated chart settings:', settings.chartSettings);
-    res.json({ success: true, settings: settings.chartSettings });
+    res.json({ success: true });
   } catch (error) {
     console.error('Error updating chart settings:', error);
-    console.error('Request body:', req.body);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to update chart settings' });
   }
 });
 
 // Update projection settings
 app.post('/api/settings/projection', async (req, res) => {
   try {
-    console.log('POST /api/settings/projection - Received body:', req.body);
-    const newSettings = req.body;
-    
-    // Validate the structure of newSettings
-    if (!newSettings || typeof newSettings !== 'object') {
-      throw new Error('Invalid settings format');
-    }
-    
-    // Validate that all days are present
-    const requiredDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    for (const day of requiredDays) {
-      if (typeof newSettings[day] !== 'number') {
-        throw new Error(`Missing or invalid percentage for ${day}`);
-      }
-    }
-    
-    // Validate that percentages sum to 100
-    const total = Object.values(newSettings).reduce((sum, val) => sum + Number(val), 0);
-    if (Math.abs(total - 100) > 0.01) {
-      throw new Error(`Projection percentages must sum to 100% (got ${total.toFixed(2)}%)`);
-    }
-    
-    // Find existing settings or create new ones
+    console.log('Updating projection settings:', req.body);
     let settings = await Settings.findOne();
+    
     if (!settings) {
-      settings = new Settings(defaultSettings);
+      settings = new Settings();
     }
     
-    // Update projection settings
-    settings.projectionSettings = newSettings;
+    settings.projectionSettings = req.body;
     await settings.save();
     
-    console.log('Updated projection settings:', settings.projectionSettings);
-    res.json({ success: true, settings: settings.projectionSettings });
+    res.json({ success: true });
   } catch (error) {
     console.error('Error updating projection settings:', error);
-    console.error('Request body:', req.body);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Failed to update projection settings' });
   }
 });
 
