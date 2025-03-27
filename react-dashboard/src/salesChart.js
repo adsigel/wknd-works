@@ -91,49 +91,36 @@ const SalesChart = () => {
 
   // Load settings when component mounts
   useEffect(() => {
-    const loadSettings = async () => {
+    const fetchSettings = async () => {
       try {
-        console.log('Loading settings...');
-        const response = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/settings`);
-        console.log('Settings loaded:', response.data);
-        if (response.data.projectionSettings) {
-          setProjectionSettings(response.data.projectionSettings);
-        }
-        if (response.data.chartSettings) {
-          setChartSettings(response.data.chartSettings);
+        const response = await axios.get('/api/settings');
+        if (response.data) {
+          setChartSettings(response.data.chartSettings || {});
+          setProjectionSettings(response.data.projectionSettings || {});
         }
       } catch (error) {
-        console.error('Error loading settings:', error);
-        // Fall back to defaults if we can't load settings
-        setProjectionSettings(defaultProjectionSettings);
+        console.error('Error fetching settings:', error);
       }
     };
 
-    loadSettings();
+    fetchSettings();
   }, []); // Empty dependency array means this runs once when component mounts
 
   const handleChartSettingsChange = async (newSettings) => {
     try {
-      const response = await axios.post(
-        `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/settings/chart`,
-        newSettings
-      );
+      const response = await axios.post('/api/settings/chart', newSettings);
       if (response.data.success) {
         setChartSettings(newSettings);
       }
     } catch (error) {
       console.error('Error saving chart settings:', error);
-      // Optionally show error to user
     }
   };
 
   const handleProjectionSettingsChange = async (newSettings) => {
     try {
       console.log('Saving projection settings:', newSettings);
-      const response = await axios.post(
-        `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/settings/projection`,
-        newSettings
-      );
+      const response = await axios.post('/api/settings/projection', newSettings);
       
       if (response.data.success) {
         console.log('Successfully saved projection settings');
@@ -143,21 +130,16 @@ const SalesChart = () => {
       } else {
         console.error('Failed to save projection settings:', response.data);
         // Revert to previous settings if save failed
-        const settingsResponse = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/settings`);
+        const settingsResponse = await axios.get('/api/settings');
         if (settingsResponse.data.projectionSettings) {
           setProjectionSettings(settingsResponse.data.projectionSettings);
         }
       }
     } catch (error) {
-      console.error('Error saving projection settings:', {
-        message: error.message,
-        status: error.response?.status,
-        statusText: error.response?.statusText,
-        data: error.response?.data
-      });
+      console.error('Error saving projection settings:', error);
       // Revert to previous settings on error
       try {
-        const settingsResponse = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/settings`);
+        const settingsResponse = await axios.get('/api/settings');
         if (settingsResponse.data.projectionSettings) {
           setProjectionSettings(settingsResponse.data.projectionSettings);
         }
@@ -171,31 +153,45 @@ const SalesChart = () => {
     setLoading(true);
     setError(null);
     try {
-      // First, get the sales goal for this month
-      const goalResponse = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/sales/goal`, {
-        params: { month, year }
-      });
-      const salesGoal = goalResponse.data.goal || 0;
-      setSalesGoal(salesGoal);
-
-      // Then get the sales data
-      const url = `${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/sales/${month}`;
-      console.log('Making request to:', url, 'with year:', year);
-      console.log('Environment variables:', {
-        REACT_APP_API_URL: process.env.REACT_APP_API_URL,
-        NODE_ENV: process.env.NODE_ENV
-      });
+      const url = `/api/sales/${month}`;
+      console.log('Fetching sales data for:', { month, year });
       const response = await axios.get(url, {
-        params: { year }
+        params: {
+          year,
+          month
+        }
       });
-      console.log('Response received:', response);
-      setDailySales(response.data.dailySales);
-      setDailyAmounts(response.data.dailyAmounts);
-      setDates(response.data.dates);
-      setProjectedSales(response.data.projectedSales);
+
+      console.log('Raw API response:', response.data);
+      console.log('Sales data response:', {
+        hasData: !!response.data,
+        dates: response.data?.dates,
+        dailySales: response.data?.dailySales,
+        dailyAmounts: response.data?.dailyAmounts,
+        projectedSales: response.data?.projectedSales,
+        salesGoal: response.data?.salesGoal
+      });
+
+      if (response.data) {
+        console.log('Setting state with:', {
+          datesLength: response.data.dates?.length,
+          dailySalesLength: response.data.dailySales?.length,
+          dailyAmountsLength: response.data.dailyAmounts?.length,
+          projectedSalesLength: response.data.projectedSales?.length
+        });
+        
+        setDailySales(response.data.dailySales);
+        setDailyAmounts(response.data.dailyAmounts);
+        setDates(response.data.dates);
+        setProjectedSales(response.data.projectedSales);
+        setSalesGoal(response.data.salesGoal);
+      } else {
+        console.error('No data in response');
+        setError('No data received from server');
+      }
     } catch (error) {
-      console.error("Error fetching sales data:", error);
-      console.error("Error details:", {
+      console.error('Error fetching sales data:', error);
+      console.error('Error details:', {
         message: error.message,
         status: error.response?.status,
         statusText: error.response?.statusText,
@@ -212,7 +208,7 @@ const SalesChart = () => {
   const updateSalesGoal = async (newGoal) => {
     try {
       console.log('Sending new goal:', newGoal);
-      const response = await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/sales/goal`, { 
+      const response = await axios.post('/api/sales/goal', { 
         goal: Number(newGoal),
         month: selectedMonth,
         year: selectedYear
@@ -257,8 +253,23 @@ const SalesChart = () => {
     return <div>Error: {error}</div>;
   }
 
+  console.log('Current state:', {
+    dates,
+    dailySales,
+    dailyAmounts,
+    projectedSales,
+    salesGoal,
+    selectedMonth,
+    selectedYear
+  });
+
   if (!dates || !Array.isArray(dates)) {
-    console.log('Rendering error state - dates:', dates);
+    console.error('Invalid dates data:', {
+      dates,
+      isArray: Array.isArray(dates),
+      type: typeof dates,
+      length: dates?.length
+    });
     return <div>Error: Invalid or missing dates data.</div>;
   }
 
@@ -726,13 +737,17 @@ const SalesChart = () => {
       </div>
 
       {showSettings && (
-        <Settings
-          onClose={() => setShowSettings(false)}
-          chartSettings={chartSettings}
-          onChartSettingsChange={handleChartSettingsChange}
-          projectionSettings={projectionSettings}
-          onProjectionSettingsChange={handleProjectionSettingsChange}
-        />
+        <div className="settings-modal">
+          <div className="settings-content">
+            <Settings
+              onClose={() => setShowSettings(false)}
+              chartSettings={chartSettings}
+              onChartSettingsChange={setChartSettings}
+              projectionSettings={projectionSettings}
+              onProjectionSettingsChange={setProjectionSettings}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

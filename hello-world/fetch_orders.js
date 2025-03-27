@@ -1,7 +1,19 @@
 import axios from 'axios';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-dotenv.config({ path: '.env' });
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Load environment variables from root directory
+dotenv.config({ path: path.join(__dirname, '../.env') });
+
+// Log environment variables at startup
+console.log('Environment check in fetch_orders.js:', {
+    SHOPIFY_SHOP_NAME: process.env.SHOPIFY_SHOP_NAME ? 'Set' : 'Not set',
+    SHOPIFY_ACCESS_TOKEN: process.env.SHOPIFY_ACCESS_TOKEN ? 'Set (first 4 chars: ' + process.env.SHOPIFY_ACCESS_TOKEN?.substring(0, 4) + '...)' : 'Not set'
+});
 
 function getMonthRange(year, month) {
     // Create dates in local timezone first
@@ -21,7 +33,13 @@ export async function fetchOrders(year, month) {
     const SHOPIFY_SHOP_NAME = process.env.SHOPIFY_SHOP_NAME;
     const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;
 
+    console.log('Shopify credentials check:', {
+        shopName: SHOPIFY_SHOP_NAME ? 'Set' : 'Not set',
+        accessToken: SHOPIFY_ACCESS_TOKEN ? 'Set (first 4 chars: ' + SHOPIFY_ACCESS_TOKEN.substring(0, 4) + '...)' : 'Not set'
+    });
+
     if (!SHOPIFY_SHOP_NAME || !SHOPIFY_ACCESS_TOKEN) {
+        console.error('Missing Shopify credentials');
         throw new Error('Missing required environment variables: SHOPIFY_SHOP_NAME and SHOPIFY_ACCESS_TOKEN');
     }
 
@@ -34,8 +52,7 @@ export async function fetchOrders(year, month) {
         console.log('Fetching orders with parameters:', {
             shop: SHOPIFY_SHOP_NAME,
             firstDay: firstDay.toISOString(),
-            lastDay: lastDay.toISOString(),
-            accessToken: SHOPIFY_ACCESS_TOKEN ? 'Set' : 'Not set'
+            lastDay: lastDay.toISOString()
         });
 
         while (hasNextPage) {
@@ -44,40 +61,84 @@ export async function fetchOrders(year, month) {
             const url = `https://${cleanShopName}.myshopify.com/admin/api/2024-01/orders.json`;
             console.log('Making request to:', url);
             
-            const response = await axios.get(
-                url,
-                {
-                    headers: {
-                        "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
-                    },
-                    params: {
-                        processed_at_min: firstDay.toISOString(),
-                        processed_at_max: lastDay.toISOString(),
-                        status: "any",
-                        limit: 250,
-                        fields: 'processed_at,total_price',
-                        ...(pageInfo && { page_info: pageInfo }),
-                    },
+            const requestParams = {
+                processed_at_min: firstDay.toISOString(),
+                processed_at_max: lastDay.toISOString(),
+                status: "any",
+                limit: 250,
+                fields: 'processed_at,total_price',
+                ...(pageInfo && { page_info: pageInfo })
+            };
+            
+            console.log('Request parameters:', requestParams);
+            
+            try {
+                console.log('Making Shopify API request with headers:', {
+                    'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN ? 'Set (length: ' + SHOPIFY_ACCESS_TOKEN.length + ')' : 'Not set'
+                });
+                
+                const response = await axios.get(
+                    url,
+                    {
+                        headers: {
+                            "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
+                        },
+                        params: requestParams
+                    }
+                );
+
+                if (!response.data || !response.data.orders) {
+                    console.error('Invalid response from Shopify:', response.data);
+                    throw new Error('Invalid response from Shopify API');
                 }
-            );
 
-            const orders = response.data.orders;
-            allOrders = [...allOrders, ...orders];
+                console.log('Response status:', response.status);
+                console.log('Orders in response:', response.data.orders?.length || 0);
+                if (response.data.orders?.length > 0) {
+                    console.log('Sample order:', {
+                        processed_at: response.data.orders[0].processed_at,
+                        total_price: response.data.orders[0].total_price
+                    });
+                }
 
-            // Check for pagination
-            const linkHeader = response.headers['link'];
-            if (linkHeader && linkHeader.includes('rel="next"')) {
-                pageInfo = linkHeader.match(/page_info=([^&>]*)/)[1];
-                hasNextPage = true;
-            } else {
-                hasNextPage = false;
+                const orders = response.data.orders;
+                allOrders = [...allOrders, ...orders];
+
+                // Check for pagination
+                const linkHeader = response.headers['link'];
+                if (linkHeader && linkHeader.includes('rel="next"')) {
+                    pageInfo = linkHeader.match(/page_info=([^&>]*)/)[1];
+                    hasNextPage = true;
+                    console.log('Next page info found:', pageInfo);
+                } else {
+                    hasNextPage = false;
+                    console.log('No more pages to fetch');
+                }
+
+                // Add a small delay to avoid rate limiting
+                await new Promise(resolve => setTimeout(resolve, 500));
+            } catch (error) {
+                console.error('Error making Shopify API request:', {
+                    status: error.response?.status,
+                    statusText: error.response?.statusText,
+                    data: error.response?.data,
+                    message: error.message,
+                    url: url,
+                    params: requestParams
+                });
+                throw error;
             }
-
-            // Add a small delay to avoid rate limiting
-            await new Promise(resolve => setTimeout(resolve, 500));
         }
 
-        console.log(`Fetched ${allOrders.length} orders for ${year}-${month}`);
+        console.log(`Successfully fetched ${allOrders.length} orders for ${year}-${month}`);
+        if (allOrders.length > 0) {
+            console.log('Sample of fetched orders:', allOrders.slice(0, 2).map(order => ({
+                processed_at: order.processed_at,
+                total_price: order.total_price
+            })));
+        } else {
+            console.log('No orders found for the specified period');
+        }
         return allOrders;
     } catch (error) {
         console.error('Error fetching orders:', {
@@ -88,7 +149,7 @@ export async function fetchOrders(year, month) {
             url: error.config?.url,
             headers: error.config?.headers
         });
-        throw new Error(`Failed to fetch orders: ${error.message}`);
+        throw error;
     }
 }
 
@@ -238,7 +299,9 @@ function generateMockData(month, year) {
   
   const dailySales = [];
   const dates = [];
+  const dailyAmounts = [];  // Add array for daily amounts
   const daysInMonth = new Date(year, month, 0).getDate();
+  console.log('Days in month:', daysInMonth);
   let cumulativeSum = 0;
   
   for (let day = 1; day <= daysInMonth; day++) {
@@ -253,6 +316,7 @@ function generateMockData(month, year) {
       Math.random() * 300 + 400;  // $400-700 on weekdays
     dailyAmount = Number(dailyAmount.toFixed(2));
     
+    dailyAmounts.push(dailyAmount);  // Store the daily amount
     cumulativeSum += dailyAmount;
     dailySales.push(cumulativeSum);
     dates.push(date.toISOString().split('T')[0]);
@@ -261,6 +325,7 @@ function generateMockData(month, year) {
   const result = {
     dailySales,
     dates,
+    dailyAmounts,  // Include dailyAmounts in the result
     salesGoal: 8500,
     projectedSales: generateProjectedSales(daysInMonth)
   };
@@ -270,7 +335,10 @@ function generateMockData(month, year) {
     firstDay: dates[0],
     lastDay: dates[dates.length - 1],
     firstDailySale: dailySales[0],
-    lastDailySale: dailySales[dailySales.length - 1]
+    lastDailySale: dailySales[dailySales.length - 1],
+    firstDailyAmount: dailyAmounts[0],
+    lastDailyAmount: dailyAmounts[dailyAmounts.length - 1],
+    datesArray: dates
   });
 
   return result;
@@ -319,7 +387,15 @@ export async function calculateCumulativeSales(month, year = new Date().getFullY
     
     if (!process.env.SHOPIFY_SHOP_NAME || !process.env.SHOPIFY_ACCESS_TOKEN) {
       console.log('No Shopify credentials found, using mock data');
-      return generateMockData(month, year);
+      const mockData = generateMockData(month, year);
+      console.log('Generated mock data:', {
+        datesLength: mockData.dates.length,
+        dailySalesLength: mockData.dailySales.length,
+        dailyAmountsLength: mockData.dailyAmounts.length,
+        firstDate: mockData.dates[0],
+        lastDate: mockData.dates[mockData.dates.length - 1]
+      });
+      return mockData;
     }
 
     console.log('Fetching orders for:', { month, year });
@@ -363,18 +439,21 @@ export async function calculateCumulativeSales(month, year = new Date().getFullY
       salesArray.push(Number(cumulative.toFixed(2)));
     });
 
-    console.log('Daily amounts sample:', dailyAmounts.slice(0, 5));
-    console.log('Cumulative sales sample:', salesArray.slice(0, 5));
+    console.log('Processed data:', {
+      datesLength: dates.length,
+      dailySalesLength: salesArray.length,
+      dailyAmountsLength: dailyAmounts.length,
+      firstDate: dates[0],
+      lastDate: dates[dates.length - 1],
+      firstDailyAmount: dailyAmounts[0],
+      lastDailyAmount: dailyAmounts[dailyAmounts.length - 1]
+    });
 
     // Get the sales goal for this month
     let salesGoal = 8500; // Default value
     try {
       console.log('Fetching sales goal...');
-      // Use window.location.origin in browser, fallback to environment variable in Node
-      const apiBase = typeof window !== 'undefined' ? window.location.origin : (process.env.API_URL || 'http://localhost:5001');
-      console.log('Using API base URL:', apiBase);
-      
-      const goalResponse = await axios.get(`${apiBase}/api/sales/goal`, {
+      const goalResponse = await axios.get('/api/sales/goal', {
         params: { month, year }
       });
       salesGoal = goalResponse.data.goal || salesGoal;
@@ -387,13 +466,25 @@ export async function calculateCumulativeSales(month, year = new Date().getFullY
     // Generate projected sales based on the actual month's data
     const projectedSales = Array(sortedDates.length).fill(salesGoal);
 
-    return {
+    const result = {
       dates,
       dailySales: salesArray,
       dailyAmounts,
       salesGoal,
       projectedSales
     };
+
+    console.log('Final result:', {
+      hasDates: !!result.dates,
+      datesLength: result.dates.length,
+      hasDailySales: !!result.dailySales,
+      dailySalesLength: result.dailySales.length,
+      hasDailyAmounts: !!result.dailyAmounts,
+      dailyAmountsLength: result.dailyAmounts.length,
+      salesGoal: result.salesGoal
+    });
+
+    return result;
 
   } catch (error) {
     console.error('Error in calculateCumulativeSales:', {
@@ -409,6 +500,14 @@ export async function calculateCumulativeSales(month, year = new Date().getFullY
     });
     // If there's an error with Shopify, fall back to mock data
     console.log('Falling back to mock data due to Shopify API error');
-    return generateMockData(month, year);
+    const mockData = generateMockData(month, year);
+    console.log('Generated mock data:', {
+      datesLength: mockData.dates.length,
+      dailySalesLength: mockData.dailySales.length,
+      dailyAmountsLength: mockData.dailyAmounts.length,
+      firstDate: mockData.dates[0],
+      lastDate: mockData.dates[mockData.dates.length - 1]
+    });
+    return mockData;
   }
 }

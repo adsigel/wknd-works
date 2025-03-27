@@ -11,6 +11,7 @@ import Settings from './backend/models/Settings.js';
 import Order from './backend/models/Order.js';
 import { MongoClient } from 'mongodb';
 import fs from 'fs';
+import inventoryRoutes from './backend/routes/inventory.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -106,17 +107,9 @@ app.use(cors({
 
 // Add request logging middleware
 app.use((req, res, next) => {
-  console.log(`${req.method} ${req.url}`);
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
   next();
 });
-
-// Test route
-app.get('/test', (req, res) => {
-  res.json({ message: 'Server is working' });
-});
-
-// Middleware to parse JSON in request body (if needed)
-app.use(express.json());
 
 // Middleware to check MongoDB connection
 app.use((req, res, next) => {
@@ -125,6 +118,26 @@ app.use((req, res, next) => {
     return res.status(503).json({ error: 'Database connection not available' });
   }
   next();
+});
+
+// Body parsing middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Mount inventory routes
+console.log('Mounting inventory routes at /api/inventory');
+app.use('/api/inventory', inventoryRoutes);
+
+// Debug: Log all registered routes
+app._router.stack.forEach(function(r){
+    if (r.route && r.route.path){
+        console.log('Registered route:', r.route.stack[0].method.toUpperCase(), r.route.path);
+    }
+});
+
+// Test route
+app.get('/test', (req, res) => {
+  res.json({ message: 'Server is working' });
 });
 
 // Store the sales goals in memory (you might want to persist this in a database later)
@@ -538,6 +551,11 @@ async function testMongoConnection() {
     return false;
   }
 }
+
+// Register routes (move this after all middleware setup)
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use('/api/inventory', inventoryRoutes);
 
 // Connect to MongoDB and start server
 testMongoConnection().then(success => {

@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './Settings.css';
+import InventorySummary from './components/InventorySummary';
+import InventorySettings from './components/InventorySettings';
+import MonthlyGoals from './components/MonthlyGoals';
 
 const months = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -100,6 +103,8 @@ const Settings = ({ onClose, chartSettings, onChartSettingsChange, projectionSet
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [localProjectionSettings, setLocalProjectionSettings] = useState(projectionSettings);
   const [localChartSettings, setLocalChartSettings] = useState(chartSettings);
+  const inventorySummaryRef = React.useRef(null);
+  const [inventorySettings, setInventorySettings] = useState(null);
 
   useEffect(() => {
     setLocalProjectionSettings(projectionSettings);
@@ -419,41 +424,116 @@ const Settings = ({ onClose, chartSettings, onChartSettingsChange, projectionSet
     </div>
   );
 
+  const handleInventorySettingsChange = (newSettings) => {
+    console.log('Inventory settings changed:', newSettings);
+    setInventorySettings(newSettings);
+  };
+
+  const handleSettingsChange = async () => {
+    console.log('Settings changed, refreshing summary');
+    try {
+      // First, save the current settings
+      if (inventorySettings) {
+        console.log('Saving inventory settings:', inventorySettings);
+        await axios.post(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/settings`, {
+          inventorySettings
+        });
+      }
+
+      // Then refresh the summary
+      if (inventorySummaryRef.current) {
+        await inventorySummaryRef.current.refreshSummary();
+      }
+    } catch (error) {
+      console.error('Error refreshing summary:', error);
+      setError('Failed to refresh summary');
+    }
+  };
+
+  const handleInventorySave = async () => {
+    console.log('Saving inventory settings and refreshing summary');
+    try {
+      await handleSettingsChange();
+      handleClose();
+    } catch (error) {
+      console.error('Error saving and refreshing:', error);
+      setError('Failed to save settings and refresh summary');
+    }
+  };
+
   return (
-    <div className="settings-modal">
-      <div className="settings-content">
-        <h2>Settings</h2>
-        
-        <div className="settings-tabs">
-          <button 
-            className={`tab-button ${activeTab === 'goals' ? 'active' : ''}`}
-            onClick={() => setActiveTab('goals')}
-          >
-            Monthly Goals
-          </button>
-          <button 
-            className={`tab-button ${activeTab === 'chart' ? 'active' : ''}`}
-            onClick={() => setActiveTab('chart')}
-          >
-            Chart Styling
-          </button>
-          <button 
-            className={`tab-button ${activeTab === 'projection' ? 'active' : ''}`}
-            onClick={() => setActiveTab('projection')}
-          >
-            Customize Projection
-          </button>
+    <div className="modal">
+      <div className="modal-content">
+        <div className="modal-header">
+          <h2>Settings</h2>
+          <div className="tabs">
+            <button
+              className={`tab ${activeTab === 'goals' ? 'active' : ''}`}
+              onClick={() => setActiveTab('goals')}
+            >
+              Monthly Goals
+            </button>
+            <button
+              className={`tab ${activeTab === 'chart' ? 'active' : ''}`}
+              onClick={() => setActiveTab('chart')}
+            >
+              Chart Styling
+            </button>
+            <button
+              className={`tab ${activeTab === 'projection' ? 'active' : ''}`}
+              onClick={() => setActiveTab('projection')}
+            >
+              Customize Projection
+            </button>
+            <button
+              className={`tab ${activeTab === 'inventory' ? 'active' : ''}`}
+              onClick={() => setActiveTab('inventory')}
+            >
+              Inventory
+            </button>
+          </div>
         </div>
 
         <div className="tab-content">
           {activeTab === 'goals' && renderMonthlyGoals()}
           {activeTab === 'chart' && renderChartSettings()}
           {activeTab === 'projection' && renderProjectionSettings()}
+          {activeTab === 'inventory' && (
+            <div className="inventory-section">
+              <InventorySettings 
+                onSettingsChange={handleInventorySettingsChange} 
+                hideButtons={true} 
+              />
+              <InventorySummary ref={inventorySummaryRef} />
+              {error && <div className="error-message">{error}</div>}
+            </div>
+          )}
         </div>
 
-        <button className="close-button" onClick={handleClose}>
-          Save Changes
-        </button>
+        <div className="modal-footer">
+          {activeTab === 'inventory' ? (
+            <>
+              <button 
+                className="refresh-button" 
+                onClick={handleSettingsChange}
+                disabled={loading}
+              >
+                Refresh Summary
+              </button>
+              <button 
+                className="save-button" 
+                onClick={handleInventorySave}
+                disabled={loading}
+              >
+                Save Changes
+              </button>
+            </>
+          ) : (
+            <button className="close-button" onClick={handleClose}>
+              Save Changes
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

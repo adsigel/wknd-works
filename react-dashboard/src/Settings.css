@@ -12,46 +12,48 @@
 }
 
 .settings-content {
-  background-color: white;
+  background: white;
   padding: 2rem;
   border-radius: 8px;
-  max-width: 800px;
   width: 90%;
+  max-width: 800px;
   max-height: 90vh;
   overflow-y: auto;
+  position: relative;
 }
 
 .settings-tabs {
   display: flex;
   gap: 1rem;
-  margin-bottom: 2rem;
-  border-bottom: 1px solid #eee;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid #e9ecef;
   padding-bottom: 1rem;
 }
 
 .tab-button {
-  padding: 0.75rem 1.5rem;
+  padding: 0.5rem 1rem;
   border: none;
   background: none;
-  font-size: 1rem;
-  color: #666;
   cursor: pointer;
+  font-size: 0.875rem;
+  color: #6c757d;
   border-radius: 4px;
   transition: all 0.2s ease;
 }
 
 .tab-button:hover {
-  background-color: #f5f5f5;
+  background: #f8f9fa;
   color: #2c3d2f;
 }
 
 .tab-button.active {
-  background-color: #2c3d2f;
-  color: white;
+  background: #e9ecef;
+  color: #2c3d2f;
+  font-weight: 600;
 }
 
 .tab-content {
-  margin-top: 1rem;
+  margin-bottom: 2rem;
 }
 
 .settings-section {
@@ -59,7 +61,6 @@
 }
 
 .settings-content h2 {
-  margin-top: 0;
   margin-bottom: 1.5rem;
   color: #2c3d2f;
 }
@@ -366,15 +367,77 @@ button[type="button"]:hover {
 }
 
 .close-button {
-  background-color: #2c3d2f;
+  position: absolute;
+  bottom: 1rem;
+  right: 1rem;
+  padding: 0.5rem 1rem;
+  background: #2c3d2f;
   color: white;
   border: none;
-  padding: 0.5rem 1rem;
   border-radius: 4px;
   cursor: pointer;
-  margin-top: 1rem;
+  font-size: 0.875rem;
+  transition: background-color 0.2s ease;
 }
 
 .close-button:hover {
-  background-color: #1a261d;
+  background: #1a231d;
+}
+
+.inventory-summary {
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.inventory-summary h3 {
+  margin: 0 0 20px 0;
+  color: #333;
+  font-size: 1.2em;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.summary-item label {
+  font-size: 0.9em;
+  color: #666;
+}
+
+.summary-item span {
+  font-size: 1.2em;
+  font-weight: 500;
+  color: #333;
+}
+
+.summary-item span.positive {
+  color: #2e7d32;
+}
+
+.summary-item span.negative {
+  color: #d32f2f;
+}
+
+.inventory-section {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.inventory-section h3 {
+  color: #2c3d2f;
+  margin-bottom: 1rem;
 } 
