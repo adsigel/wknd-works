@@ -62,9 +62,9 @@ export async function fetchOrders(year, month) {
             console.log('Making request to:', url);
             
             const requestParams = {
-                processed_at_min: firstDay.toISOString(),
-                processed_at_max: lastDay.toISOString(),
-                status: "any",
+                    processed_at_min: firstDay.toISOString(),
+                    processed_at_max: lastDay.toISOString(),
+                    status: "any",
                 limit: 250,
                 fields: 'processed_at,total_price',
                 ...(pageInfo && { page_info: pageInfo })
@@ -401,7 +401,7 @@ export async function calculateCumulativeSales(month, year = new Date().getFullY
     console.log('Fetching orders for:', { month, year });
     const orders = await fetchOrders(year, month);
     console.log('Fetched orders count:', orders.length);
-    
+
     const { firstDay, lastDay } = getMonthRange(year, month);
     console.log('Date range:', { firstDay: firstDay.toISOString(), lastDay: lastDay.toISOString() });
 

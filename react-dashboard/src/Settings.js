@@ -240,34 +240,38 @@ const Settings = ({ onClose, chartSettings, onChartSettingsChange, projectionSet
         <div key={series} className="style-section">
           <h4>{series}</h4>
           <div className="style-inputs">
-            <ColorInput
-              label="Fill Color"
-              color={settings.backgroundColor}
-              onChange={(newColor) => {
-                handleChartSettingsChange({
-                  ...localChartSettings,
-                  [series]: {
-                    ...settings,
-                    backgroundColor: newColor
-                  }
-                });
-              }}
-            />
-            <ColorInput
-              label="Border Color"
-              color={settings.borderColor}
-              onChange={(newColor) => {
-                handleChartSettingsChange({
-                  ...localChartSettings,
-                  [series]: {
-                    ...settings,
-                    borderColor: newColor
-                  }
-                });
-              }}
-            />
+            {series === 'Daily Sales' && (
+              <ColorInput
+                label="Fill Color"
+                color={settings.backgroundColor}
+                onChange={(newColor) => {
+                  handleChartSettingsChange({
+                    ...localChartSettings,
+                    [series]: {
+                      ...settings,
+                      backgroundColor: newColor
+                    }
+                  });
+                }}
+              />
+            )}
+            {series !== 'Daily Sales' && (
+              <ColorInput
+                label="Color"
+                color={settings.borderColor}
+                onChange={(newColor) => {
+                  handleChartSettingsChange({
+                    ...localChartSettings,
+                    [series]: {
+                      ...settings,
+                      borderColor: newColor
+                    }
+                  });
+                }}
+              />
+            )}
             <div className="border-width-group">
-              <label>Border Width:</label>
+              <label>Thickness:</label>
               <input
                 type="number"
                 min="0"
@@ -386,9 +390,7 @@ const Settings = ({ onClose, chartSettings, onChartSettingsChange, projectionSet
       {error && <div className="error-message">{error}</div>}
 
       <p className="projection-description">
-        Set the percentage of monthly sales expected for each day of the week.
-        These percentages will be used to project daily sales targets.
-        Click "Analyze Past Sales" to automatically calculate optimal percentages based on historical data.
+        Set the percentage of monthly sales expected for each day of the week. These percentages will be used to project daily sales targets. Click "Analyze Past Sales" to automatically calculate optimal percentages based on historical data.
       </p>
 
       <div className="projection-settings-container">
@@ -411,15 +413,9 @@ const Settings = ({ onClose, chartSettings, onChartSettingsChange, projectionSet
         ))}
       </div>
 
-      <div className="total-percentage-section">
-        <p className={`total-percentage ${
-          Object.values(localProjectionSettings).reduce((a, b) => a + b, 0) === 100 ? 'valid' : 'invalid'
-        }`}>
-          Total: {Object.values(localProjectionSettings).reduce((a, b) => a + b, 0)}%
-          {Object.values(localProjectionSettings).reduce((a, b) => a + b, 0) !== 100 && 
-            <span className="error-message"> (Should equal 100%)</span>
-          }
-        </p>
+      <div className={`total-percentage ${Object.values(localProjectionSettings).reduce((a, b) => a + b, 0) === 100 ? 'valid' : 'invalid'}`}>
+        Total: {Object.values(localProjectionSettings).reduce((a, b) => a + b, 0)}%
+        {Object.values(localProjectionSettings).reduce((a, b) => a + b, 0) !== 100 && ' (Must equal 100%)'}
       </div>
     </div>
   );
@@ -427,6 +423,27 @@ const Settings = ({ onClose, chartSettings, onChartSettingsChange, projectionSet
   const handleInventorySettingsChange = (newSettings) => {
     console.log('Inventory settings changed:', newSettings);
     setInventorySettings(newSettings);
+  };
+
+  const handleInventorySettingChange = (range, value) => {
+    const newValue = value === '' ? 0 : Number(value) / 100; // Convert percentage to decimal
+    const newSettings = {
+      ...inventorySettings || {
+        discountRanges: {
+          range1: { days: 30, discount: 0.15 },
+          range2: { days: 60, discount: 0.25 },
+          range3: { days: 90, discount: 0.40 }
+        }
+      },
+      discountRanges: {
+        ...inventorySettings?.discountRanges || {},
+        [range]: {
+          days: range === 'range1' ? 30 : range === 'range2' ? 60 : 90,
+          discount: newValue
+        }
+      }
+    };
+    handleInventorySettingsChange(newSettings);
   };
 
   const handleSettingsChange = async () => {
@@ -461,53 +478,94 @@ const Settings = ({ onClose, chartSettings, onChartSettingsChange, projectionSet
     }
   };
 
+  const renderInventorySettings = () => (
+    <div className="settings-section">
+      <div className="inventory-discount-section">
+        <h3>Inventory Discount Settings</h3>
+        <p className="inventory-discount-description">
+          Set different discount levels for different inventory ages to get a more realistic sense of your inventory value. Use this with your monthly sales goals to plan your inventory buys.
+        </p>
+        <div className="discount-settings-container">
+          <div className="discount-setting">
+            <label>30 days:</label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={inventorySettings?.discountRanges?.range1?.discount * 100 || 15}
+              onChange={(e) => handleInventorySettingChange('range1', e.target.value)}
+            />
+            <span>%</span>
+          </div>
+          <div className="discount-setting">
+            <label>60 days:</label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={inventorySettings?.discountRanges?.range2?.discount * 100 || 25}
+              onChange={(e) => handleInventorySettingChange('range2', e.target.value)}
+            />
+            <span>%</span>
+          </div>
+          <div className="discount-setting">
+            <label>90 days:</label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={inventorySettings?.discountRanges?.range3?.discount * 100 || 40}
+              onChange={(e) => handleInventorySettingChange('range3', e.target.value)}
+            />
+            <span>%</span>
+          </div>
+        </div>
+      </div>
+      <InventorySummary ref={inventorySummaryRef} />
+    </div>
+  );
+
   return (
     <div className="modal">
       <div className="modal-content">
         <div className="modal-header">
-          <h2>Settings</h2>
-          <div className="tabs">
-            <button
-              className={`tab ${activeTab === 'goals' ? 'active' : ''}`}
-              onClick={() => setActiveTab('goals')}
-            >
-              Monthly Goals
-            </button>
-            <button
-              className={`tab ${activeTab === 'chart' ? 'active' : ''}`}
-              onClick={() => setActiveTab('chart')}
-            >
-              Chart Styling
-            </button>
-            <button
-              className={`tab ${activeTab === 'projection' ? 'active' : ''}`}
-              onClick={() => setActiveTab('projection')}
-            >
-              Customize Projection
-            </button>
-            <button
-              className={`tab ${activeTab === 'inventory' ? 'active' : ''}`}
-              onClick={() => setActiveTab('inventory')}
-            >
-              Inventory
-            </button>
+          <div className="modal-header-content">
+            <h2>Settings</h2>
+            <div className="tabs">
+              <button
+                className={`tab ${activeTab === 'goals' ? 'active' : ''}`}
+                onClick={() => setActiveTab('goals')}
+              >
+                Monthly Goals
+              </button>
+              <button
+                className={`tab ${activeTab === 'chart' ? 'active' : ''}`}
+                onClick={() => setActiveTab('chart')}
+              >
+                Chart Styling
+              </button>
+              <button
+                className={`tab ${activeTab === 'projection' ? 'active' : ''}`}
+                onClick={() => setActiveTab('projection')}
+              >
+                Customize Projection
+              </button>
+              <button
+                className={`tab ${activeTab === 'inventory' ? 'active' : ''}`}
+                onClick={() => setActiveTab('inventory')}
+              >
+                Inventory
+              </button>
+            </div>
           </div>
+          <button className="modal-close" onClick={onClose}>&times;</button>
         </div>
 
         <div className="tab-content">
           {activeTab === 'goals' && renderMonthlyGoals()}
           {activeTab === 'chart' && renderChartSettings()}
           {activeTab === 'projection' && renderProjectionSettings()}
-          {activeTab === 'inventory' && (
-            <div className="inventory-section">
-              <InventorySettings 
-                onSettingsChange={handleInventorySettingsChange} 
-                hideButtons={true} 
-              />
-              <InventorySummary ref={inventorySummaryRef} />
-              {error && <div className="error-message">{error}</div>}
-            </div>
-          )}
+          {activeTab === 'inventory' && renderInventorySettings()}
         </div>
 
         <div className="modal-footer">
@@ -529,7 +587,7 @@ const Settings = ({ onClose, chartSettings, onChartSettingsChange, projectionSet
               </button>
             </>
           ) : (
-            <button className="close-button" onClick={handleClose}>
+            <button className="save-button" onClick={handleClose}>
               Save Changes
             </button>
           )}

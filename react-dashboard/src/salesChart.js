@@ -5,6 +5,7 @@ import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, LineElement, 
 import { format } from 'date-fns';
 import Settings from './Settings';
 import './Settings.css';
+import './salesChart.css';
 
 ChartJS.register(
   CategoryScale,
@@ -71,8 +72,6 @@ const SalesChart = () => {
   const [dates, setDates] = useState([]);
   const [salesGoal, setSalesGoal] = useState(0);
   const [projectedSales, setProjectedSales] = useState([]);
-  const [isEditingGoal, setIsEditingGoal] = useState(false);
-  const [tempGoal, setTempGoal] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
@@ -205,40 +204,6 @@ const SalesChart = () => {
     }
   };
 
-  const updateSalesGoal = async (newGoal) => {
-    try {
-      console.log('Sending new goal:', newGoal);
-      const response = await axios.post('/api/sales/goal', { 
-        goal: Number(newGoal),
-        month: selectedMonth,
-        year: selectedYear
-      });
-      console.log('Server response:', response.data);
-      
-      if (response.data.success) {
-        setSalesGoal(newGoal);
-        setIsEditingGoal(false);
-        // Refresh the data with the new goal
-        fetchSalesData(selectedMonth, selectedYear);
-      } else {
-        console.error('Failed to update goal:', response.data.error);
-      }
-    } catch (error) {
-      console.error('Error updating sales goal:', error.response?.data || error.message);
-    }
-  };
-
-  const handleGoalSubmit = (e) => {
-    e.preventDefault();
-    const newGoal = parseFloat(tempGoal);
-    if (!isNaN(newGoal) && newGoal > 0) {
-      updateSalesGoal(newGoal);
-    } else {
-      console.error('Invalid goal value:', tempGoal);
-      // You might want to show an error message to the user here
-    }
-  };
-
   // Call fetchSalesData when the user selects a different month or year
   useEffect(() => {
     console.log('useEffect triggered with month:', selectedMonth, 'year:', selectedYear);
@@ -273,11 +238,12 @@ const SalesChart = () => {
     return <div>Error: Invalid or missing dates data.</div>;
   }
 
-  const fontFamily = "'Nunito Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif";
+  const fontFamily = "'Nunito', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', sans-serif";
   document.body.style.fontFamily = fontFamily;
 
   const options = {
     responsive: true,
+    maintainAspectRatio: false, // Allow chart to determine its own height
     font: {
       family: fontFamily,
       weight: 500
@@ -351,6 +317,23 @@ const SalesChart = () => {
           font: {
             family: fontFamily,
             weight: 500
+          },
+          usePointStyle: true,
+          pointStyle: function(context) {
+            // Use different styles for each series
+            switch(context.text) {
+              case 'Daily Sales':
+                return 'rect';
+              case 'Projected Sales':
+              case 'Sales Goal':
+                return 'line';
+              default:
+                return 'rect';
+            }
+          },
+          pointStyleWidth: function(context) {
+            // Make lines longer than rectangles
+            return context.text === 'Daily Sales' ? 16 : 40;
           }
         }
       }
@@ -372,7 +355,8 @@ const SalesChart = () => {
             weight: 400
           },
           callback: function(value, index) {
-            return index + 1; // Just show the number
+            // Only show every other tick on small screens
+            return window.innerWidth < 768 && index % 2 !== 0 ? '' : index + 1;
           }
         }
       },
@@ -488,7 +472,8 @@ const SalesChart = () => {
           const index = numericDates.indexOf(day);
           return index !== -1 ? dailySales[index] : 0;
         }),
-        ...chartSettings['Daily Sales']
+        ...chartSettings['Daily Sales'],
+        type: 'bar'  // Explicitly set type for Daily Sales
       },
       {
         label: 'Projected Sales',
@@ -496,14 +481,18 @@ const SalesChart = () => {
         ...chartSettings['Projected Sales'],
         type: 'line',
         fill: false,
-        borderDash: [5, 5]
+        borderDash: [5, 5],
+        pointRadius: 0,
+        pointHoverRadius: 0
       },
       {
-        label: 'Sales Goal',
+        label: 'Monthly Sales Goal',
         data: Array(allDaysInMonth.length).fill(salesGoal),
         ...chartSettings['Sales Goal'],
         type: 'line',
-        fill: false
+        fill: false,
+        pointRadius: 0,
+        pointHoverRadius: 0
       },
     ],
   };
@@ -591,143 +580,82 @@ const SalesChart = () => {
   };
 
   return (
-    <div>
-      <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'space-between', fontFamily }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          <label>Select Month: </label>
-          <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))}>
-            {months.map((m) => (
-              <option key={m.value} value={m.value}>{m.label}</option>
-            ))}
-          </select>
+    <div className="dashboard">
+      <div className="dashboard-header">
+        <h2 className="dashboard-title" style={{ fontSize: '24px', marginBottom: '24px' }}>
+          {months.find(m => m.value === selectedMonth)?.label} {selectedYear}
+        </h2>
+        
+        <div className="controls-section">
+          <div className="controls-group">
+            <div className="control-item">
+              <label>Select Month:</label>
+              <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))}>
+                {months.map((m) => (
+                  <option key={m.value} value={m.value}>{m.label}</option>
+                ))}
+              </select>
+            </div>
 
-          <label style={{ marginLeft: '20px' }}>Year: </label>
-          <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}>
-            {[2024, 2025].map((year) => (
-              <option key={year} value={year}>{year}</option>
-            ))}
-          </select>
-        </div>
+            <div className="control-item">
+              <label>Year:</label>
+              <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}>
+                {[2024, 2025].map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </div>
 
-        <button 
-          onClick={() => setShowSettings(true)}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#2c3d2f',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
-          }}
-        >
-          Settings
-        </button>
-      </div>
-
-      <div style={{ marginBottom: '20px', fontFamily }}>
-        {isEditingGoal ? (
-          <form onSubmit={handleGoalSubmit} style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <label>Monthly Goal: $</label>
-            <input
-              type="number"
-              value={tempGoal}
-              onChange={(e) => setTempGoal(e.target.value)}
-              style={{ width: '100px' }}
-              autoFocus
-            />
-            <button type="submit">Save</button>
-            <button type="button" onClick={() => setIsEditingGoal(false)}>Cancel</button>
-          </form>
-        ) : (
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <label>Monthly Goal: ${salesGoal.toLocaleString()}</label>
-            <button onClick={() => {
-              setTempGoal(salesGoal.toString());
-              setIsEditingGoal(true);
-            }}>Edit</button>
+            <div className="control-item">
+              <label>Monthly Goal:</label>
+              <span style={{ color: '#2c3d2f', fontWeight: 500 }}>${salesGoal.toLocaleString()}</span>
+            </div>
           </div>
-        )}
+
+          <button 
+            className="settings-button"
+            onClick={() => setShowSettings(true)}
+          >
+            Settings
+          </button>
+        </div>
       </div>
 
-      <h2 style={{ fontFamily }}>{months.find(m => m.value === selectedMonth)?.label} {selectedYear}</h2>
-      
-      <div style={{ 
-        display: 'flex', 
-        flexDirection: isMobile ? 'column-reverse' : 'row',
-        gap: '20px', 
-        alignItems: isMobile ? 'stretch' : 'flex-start'
-      }}>
-        <div style={{ flex: 1 }}>
+      <div className="chart-section">
+        <div className="chart-container">
           <Bar data={salesData} options={options} />
         </div>
         
-        <div style={{
-          minWidth: isMobile ? 'auto' : '200px',
-          padding: '20px',
-          backgroundColor: '#f5f5f5',
-          borderRadius: '8px',
-          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-          fontFamily,
-          marginBottom: isMobile ? '20px' : '0'
-        }}>
-          <h3 style={{ margin: '0 0 15px 0', color: '#2c3d2f' }}>Stats</h3>
+        <div className="stats-panel">
+          <h3 className="stats-title">Stats</h3>
           
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '14px', color: '#666', marginBottom: '4px' }}>Today's Sales Goal</div>
-              <div style={{ 
-                fontSize: '18px', 
-                fontWeight: 'bold', 
-                color: '#2c3d2f', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                gap: '8px' 
-              }}>
+          <div className="stats-grid">
+            <div className="stat-item">
+              <div className="stat-label">Today's Sales Goal</div>
+              <div className="stat-value">
                 {formatCurrency(stats.todayGoal)}
                 {stats.todayGoalMet && <span role="img" aria-label="celebration">🎉</span>}
               </div>
             </div>
 
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '14px', color: '#666', marginBottom: '4px' }}>$ to Monthly Goal</div>
-              <div style={{ 
-                fontSize: '18px', 
-                fontWeight: 'bold',
-                color: stats.dollarsToTarget > 0 ? '#d2815f' : '#8fab9e',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center'
-              }}>
+            <div className="stat-item">
+              <div className="stat-label">$ to Monthly Goal</div>
+              <div className={`stat-value ${stats.dollarsToTarget > 0 ? 'under' : 'over'}`}>
                 {formatCurrency(Math.abs(stats.dollarsToTarget))}
                 {stats.dollarsToTarget > 0 ? ' under' : ' over'}
               </div>
             </div>
 
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '14px', color: '#666', marginBottom: '4px' }}>Days Hit Target</div>
-              <div style={{ 
-                fontSize: '18px', 
-                fontWeight: 'bold', 
-                color: '#2c3d2f',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center'
-              }}>
+            <div className="stat-item">
+              <div className="stat-label">Days Hit Target</div>
+              <div className="stat-value">
                 {stats.daysHit} of {stats.totalOpenDays} days
               </div>
             </div>
 
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '14px', color: '#666', marginBottom: '4px' }}>$ from Day-to-Day Projection</div>
-              <div style={{ 
-                fontSize: '18px', 
-                fontWeight: 'bold',
-                color: stats.dollarsFromPlan >= 0 ? '#8fab9e' : '#d2815f',
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center'
-              }}>
+            <div className="stat-item">
+              <div className="stat-label">$ from Day-to-Day Projection</div>
+              <div className={`stat-value ${stats.dollarsFromPlan >= 0 ? 'over' : 'under'}`}>
                 {formatCurrency(Math.abs(stats.dollarsFromPlan))}
                 {stats.dollarsFromPlan >= 0 ? ' ahead' : ' behind'}
               </div>
