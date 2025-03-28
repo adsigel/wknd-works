@@ -19,7 +19,7 @@ export default class ShopifyService {
   constructor(shopName, accessToken) {
     this.shopName = shopName;
     this.accessToken = accessToken;
-    this.baseUrl = `https://${shopName}.myshopify.com`;
+    this.baseUrl = `https://${shopName}${shopName.includes('.myshopify.com') ? '' : '.myshopify.com'}`;
     
     // Log configuration
     console.log('ShopifyService initialized with:');
