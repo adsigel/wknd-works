@@ -57,11 +57,8 @@ export async function fetchOrders(year, month) {
         });
 
         while (hasNextPage) {
-            // Extract just the shop name, removing any domain parts
-            const shopName = SHOPIFY_SHOP_NAME.split('.')[0];
-            console.log('Original shop name:', SHOPIFY_SHOP_NAME);
-            console.log('Extracted shop name:', shopName);
-            const url = `https://${shopName}.myshopify.com/admin/api/2024-01/orders.json`;
+            // Use the shop name as-is since it already includes .myshopify.com
+            const url = `https://${SHOPIFY_SHOP_NAME}/admin/api/2024-01/orders.json`;
             console.log('Making request to:', url);
             
             const requestParams = {
@@ -190,11 +187,8 @@ export async function getOrders(startDate) {
         throw new Error('Missing required environment variables: SHOPIFY_SHOP_NAME and SHOPIFY_ACCESS_TOKEN');
     }
 
-    // Extract just the shop name, removing any domain parts
-    const shopName = SHOPIFY_SHOP_NAME.split('.')[0];
-    console.log('Original shop name:', SHOPIFY_SHOP_NAME);
-    console.log('Extracted shop name:', shopName);
-    const baseUrl = `https://${shopName}.myshopify.com/admin/api/2024-01/orders.json`;
+    // Use the shop name as-is since it already includes .myshopify.com
+    const baseUrl = `https://${SHOPIFY_SHOP_NAME}/admin/api/2024-01/orders.json`;
     console.log('Using base URL:', baseUrl);
     const dailyTotals = {};
     let totalOrders = 0;
