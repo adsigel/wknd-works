@@ -92,7 +92,7 @@ const SalesChart = () => {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        const response = await axios.get('/api/settings');
+        const response = await axios.get(`${process.env.REACT_APP_API_URL}/api/settings`);
         if (response.data) {
           setChartSettings(response.data.chartSettings || {});
           setProjectionSettings(response.data.projectionSettings || {});
@@ -107,7 +107,7 @@ const SalesChart = () => {
 
   const handleChartSettingsChange = async (newSettings) => {
     try {
-      const response = await axios.post('/api/settings/chart', newSettings);
+      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/settings/chart`, newSettings);
       if (response.data.success) {
         setChartSettings(newSettings);
       }
@@ -119,7 +119,7 @@ const SalesChart = () => {
   const handleProjectionSettingsChange = async (newSettings) => {
     try {
       console.log('Saving projection settings:', newSettings);
-      const response = await axios.post('/api/settings/projection', newSettings);
+      const response = await axios.post(`${process.env.REACT_APP_API_URL}/api/settings/projection`, newSettings);
       
       if (response.data.success) {
         console.log('Successfully saved projection settings');
@@ -129,7 +129,7 @@ const SalesChart = () => {
       } else {
         console.error('Failed to save projection settings:', response.data);
         // Revert to previous settings if save failed
-        const settingsResponse = await axios.get('/api/settings');
+        const settingsResponse = await axios.get(`${process.env.REACT_APP_API_URL}/api/settings`);
         if (settingsResponse.data.projectionSettings) {
           setProjectionSettings(settingsResponse.data.projectionSettings);
         }
@@ -138,7 +138,7 @@ const SalesChart = () => {
       console.error('Error saving projection settings:', error);
       // Revert to previous settings on error
       try {
-        const settingsResponse = await axios.get('/api/settings');
+        const settingsResponse = await axios.get(`${process.env.REACT_APP_API_URL}/api/settings`);
         if (settingsResponse.data.projectionSettings) {
           setProjectionSettings(settingsResponse.data.projectionSettings);
         }
@@ -152,7 +152,7 @@ const SalesChart = () => {
     setLoading(true);
     setError(null);
     try {
-      const url = `/api/sales/${month}`;
+      const url = `${process.env.REACT_APP_API_URL}/api/sales`;
       console.log('Fetching sales data for:', { month, year });
       const response = await axios.get(url, {
         params: {

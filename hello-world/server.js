@@ -236,9 +236,9 @@ app.post('/api/sales/goal', async (req, res) => {
 });
 
 // Get sales data for a specific month
-app.get('/api/sales/:month', async (req, res) => {
+app.get('/api/sales', async (req, res) => {
   try {
-    const month = parseInt(req.params.month);
+    const month = parseInt(req.query.month);
     const year = parseInt(req.query.year) || new Date().getFullYear();
     
     if (!month || month < 1 || month > 12) {

@@ -2,6 +2,7 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import SalesGoal from './backend/models/SalesGoal.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -453,10 +454,9 @@ export async function calculateCumulativeSales(month, year = new Date().getFullY
     let salesGoal = 8500; // Default value
     try {
       console.log('Fetching sales goal...');
-      const goalResponse = await axios.get('/api/sales/goal', {
-        params: { month, year }
-      });
-      salesGoal = goalResponse.data.goal || salesGoal;
+      const date = new Date(year, month - 1, 1);
+      const goalDoc = await SalesGoal.findOne({ date });
+      salesGoal = goalDoc?.goal || salesGoal;
       console.log('Sales goal fetched:', salesGoal);
     } catch (error) {
       console.error('Error fetching sales goal, using default:', error.message);
