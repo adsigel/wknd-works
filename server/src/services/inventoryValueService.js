@@ -1,6 +1,12 @@
 import ShopifyService from './shopifyService.js';
 import Inventory from '../models/Inventory.js';
 import mongoose from 'mongoose';
+import { 
+  logError, 
+  logInfo, 
+  logDebug 
+} from '../utils/loggingUtils.js';
+import { formatCurrency, formatPercentage } from '../utils/formatters.js';
 
 class InventoryValueService {
   constructor() {
@@ -128,8 +134,8 @@ class InventoryValueService {
       console.log(`\n=== Sync Summary ===`);
       console.log(`✅ Processed ${processedVariants} variants`);
       console.log(`⚠️ Skipped ${skippedProducts} products`);
-      console.log(`💰 Total retail value: $${totalRetailValue.toFixed(2)}`);
-      console.log(`💲 Total cost value: $${totalCostValue.toFixed(2)}`);
+      console.log(`💰 Total retail value: ${formatCurrency(totalRetailValue)}`);
+      console.log(`💲 Total cost value: ${formatCurrency(totalCostValue)}`);
 
       // Calculate category breakdown using our model
       const totalValue = await Inventory.getTotalInventoryValue();
@@ -293,8 +299,13 @@ class InventoryValueService {
         totalRetailValue,
         totalCostValue,
         totalDiscountedValue,
-        grossMargin: ((totalRetailValue - totalCostValue) / totalRetailValue * 100).toFixed(1),
-        adjustedGrossMargin: ((totalDiscountedValue - totalCostValue) / totalDiscountedValue * 100).toFixed(1)
+        grossMargin: formatPercentage((totalRetailValue - totalCostValue) / totalRetailValue * 100),
+        adjustedGrossMargin: formatPercentage((totalDiscountedValue - totalCostValue) / totalDiscountedValue * 100),
+        itemizedValues: {
+          totalRetailValue,
+          totalCostValue,
+          totalDiscountedValue
+        }
       };
 
       console.log('Calculated inventory summary:', JSON.stringify(summary, null, 2));

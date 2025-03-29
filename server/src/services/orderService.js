@@ -2,6 +2,31 @@ import axios from 'axios';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { shopifyApi, LATEST_API_VERSION } from '@shopify/shopify-api';
+import { 
+  createLocalDate, 
+  formatDate, 
+  getFirstDayOfMonth, 
+  getLastDayOfMonth,
+  getAllDatesInMonth 
+} from '../utils/dateUtils.js';
+import { 
+  AppError, 
+  createErrorResponse,
+  createValidationError,
+  createNotFoundError 
+} from '../utils/errorUtils.js';
+import { 
+  validateMonth, 
+  validateYear,
+  validateDateString 
+} from '../utils/validationUtils.js';
+import { 
+  logError, 
+  logInfo, 
+  logDebug 
+} from '../utils/loggingUtils.js';
+import { formatCurrency } from '../utils/formatters.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -9,15 +34,14 @@ const workspaceDir = path.dirname(path.dirname(path.dirname(__dirname)));
 
 // Load environment variables
 const envPath = path.join(workspaceDir, '.env');
-console.log('\n========== LOADING ENVIRONMENT VARIABLES ==========');
-console.log('Looking for .env file at:', envPath);
+logInfo('Loading environment variables from: ' + envPath);
 dotenv.config({ path: envPath });
 
 const shopName = process.env.SHOPIFY_SHOP_NAME;
 const accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
 
 // Debug logging for environment variables
-console.log('Environment variables loaded:', {
+logDebug('Environment variables loaded:', {
   shopName: process.env.SHOPIFY_SHOP_NAME ? 'Present' : 'Missing',
   accessToken: process.env.SHOPIFY_ACCESS_TOKEN ? 'Present' : 'Missing',
   envPath: envPath
@@ -26,7 +50,7 @@ console.log('Environment variables loaded:', {
 // Add this function after the imports but before calculateCumulativeSales
 async function testShopifyConnection() {
   try {
-    console.log('\n========== TESTING SHOPIFY CONNECTION ==========');
+    logInfo('Testing Shopify connection');
     // Simple query to test connection
     const testQuery = `{
       shop {
@@ -38,7 +62,7 @@ async function testShopifyConnection() {
     }`;
 
     const response = await axios.post(
-      `https://${shopName}/admin/api/2024-01/graphql.json`,
+      `https://${shopName}/admin/api/${LATEST_API_VERSION}/graphql.json`,
       { query: testQuery },
       {
         headers: {
@@ -48,33 +72,33 @@ async function testShopifyConnection() {
       }
     );
 
-    console.log('Connection test successful:', JSON.stringify(response.data, null, 2));
-    console.log('============================================\n');
+    logInfo('Connection test successful');
     return true;
   } catch (error) {
-    console.error('\n========== SHOPIFY CONNECTION ERROR ==========');
-    console.error('Error details:', {
-      message: error.message,
-      status: error.response?.status,
-      statusText: error.response?.statusText
-    });
-    if (error.response?.data) {
-      console.error('Error response data:', JSON.stringify(error.response.data, null, 2));
-    }
-    console.error('============================================\n');
-    return false;
+    logError('Shopify connection error', error);
+    throw new AppError('Failed to connect to Shopify API', 500);
   }
 }
 
 export async function calculateCumulativeSales(month, year) {
   try {
-    // Debug logging for environment variables - made more prominent
-    console.log('\n========== SHOPIFY CREDENTIALS CHECK ==========');
-    console.log('ENV File Path:', envPath);
-    console.log('Shop Name:', shopName || 'MISSING');
-    console.log('Access Token:', accessToken ? 'Present (Hidden)' : 'MISSING');
-    console.log('============================================\n');
-
+    // Validate inputs
+    const validatedMonth = validateMonth(month);
+    const validatedYear = validateYear(year);
+    
+    logInfo(`Calculating cumulative sales for ${validatedMonth}/${validatedYear}`);
+    
+    // Get date range
+    const startDate = getFirstDayOfMonth(validatedYear, validatedMonth);
+    const endDate = getLastDayOfMonth(validatedYear, validatedMonth);
+    
+    // Generate all dates for the month
+    const allDates = getAllDatesInMonth(validatedYear, validatedMonth);
+    
+    // Initialize arrays for daily sales and amounts
+    const dailySales = new Array(allDates.length).fill(0);
+    const dailyAmounts = new Array(allDates.length).fill(0);
+    
     // Check if Shopify credentials are available
     if (!shopName || !accessToken) {
       console.log('❌ Shopify credentials not found, using sample data');
@@ -82,29 +106,7 @@ export async function calculateCumulativeSales(month, year) {
     }
 
     // Test Shopify connection before proceeding
-    const isConnected = await testShopifyConnection();
-    if (!isConnected) {
-      console.log('❌ Shopify connection test failed, using sample data');
-      return generateSampleData(month, year);
-    }
-
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0); // Last day of the month
-    
-    console.log('Calculating sales for period:', {
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString()
-    });
-
-    // Initialize arrays for the entire month
-    const daysInMonth = endDate.getDate();
-    const dates = Array.from({ length: daysInMonth }, (_, i) => {
-      const date = new Date(year, month - 1, i + 1);
-      // Format date as YYYY-MM-DD without timezone conversion
-      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    });
-    const dailySales = new Array(daysInMonth).fill(0);
-    const dailyAmounts = new Array(daysInMonth).fill(0);
+    await testShopifyConnection();
 
     // Updated GraphQL query for 2024-01 API version
     const query = `{
@@ -172,32 +174,30 @@ export async function calculateCumulativeSales(month, year) {
         console.log(`Processing ${orders.length} orders`);
 
         // Process orders
-        orders.forEach(({ node }) => {
-          // Create a local date from the ISO string
-          const orderDate = new Date(node.createdAt);
-          // Get the day of the month (1-based) and convert to array index (0-based)
-          const dayIndex = orderDate.getDate() - 1;
-          
-          let amount;
-          if (node.currentTotalPriceSet?.shopMoney?.amount) {
-            amount = parseFloat(node.currentTotalPriceSet.shopMoney.amount);
-          } else {
-            const subtotal = parseFloat(node.subtotalPriceSet?.shopMoney?.amount || 0);
-            const discounts = parseFloat(node.totalDiscountsSet?.shopMoney?.amount || 0);
-            amount = subtotal - discounts;
+        for (const order of orders) {
+          try {
+            const orderDate = createLocalDate(order.node.createdAt.split('T')[0]);
+            const dateIndex = allDates.indexOf(formatDate(orderDate));
+            
+            if (dateIndex !== -1) {
+              let amount;
+              if (order.node.currentTotalPriceSet?.shopMoney?.amount) {
+                amount = parseFloat(order.node.currentTotalPriceSet.shopMoney.amount);
+              } else {
+                const subtotal = parseFloat(order.node.subtotalPriceSet?.shopMoney?.amount || 0);
+                const discounts = parseFloat(order.node.totalDiscountsSet?.shopMoney?.amount || 0);
+                amount = subtotal - discounts;
+              }
+              
+              dailySales[dateIndex]++;
+              dailyAmounts[dateIndex] += amount;
+              logDebug(`Processed order ${order.node.id} for ${formatDate(orderDate)}: $${amount}`);
+            }
+          } catch (orderError) {
+            logError(`Error processing order ${order.node.id}`, orderError);
+            // Continue processing other orders
           }
-          
-          // Log each order's date calculation
-          console.log('Processing order:', {
-            createdAt: node.createdAt,
-            localDate: orderDate.toLocaleString(),
-            dayIndex,
-            amount
-          });
-          
-          dailySales[dayIndex]++;
-          dailyAmounts[dayIndex] += amount;
-        });
+        }
 
         hasNextPage = pageInfo.hasNextPage;
         cursor = pageInfo.endCursor;
@@ -217,34 +217,21 @@ export async function calculateCumulativeSales(month, year) {
     }
 
     // Calculate cumulative totals
-    let cumulativeTotal = 0;
-    const cumulativeAmounts = dailyAmounts.map(amount => {
-      cumulativeTotal += amount;
-      return parseFloat(cumulativeTotal.toFixed(2)); // Fix to 2 decimal places
-    });
-
-    // Calculate total sales and amounts
-    const totalSales = dailySales.reduce((sum, count) => sum + count, 0);
-    const totalAmount = parseFloat(dailyAmounts.reduce((sum, amount) => sum + amount, 0).toFixed(2));
-
-    console.log('\n========== FINAL SALES DATA ==========');
-    console.log('Daily Sales:', dailySales);
-    console.log('Daily Amounts:', dailyAmounts.map(amount => parseFloat(amount.toFixed(2))));
-    console.log('Cumulative Amounts:', cumulativeAmounts);
-    console.log('Total Sales:', totalSales);
-    console.log('Total Amount:', totalAmount);
-    console.log('======================================\n');
-
+    const cumulativeSales = dailySales.reduce((acc, val) => acc + val, 0);
+    const cumulativeAmount = dailyAmounts.reduce((acc, val) => acc + val, 0);
+    
+    logInfo(`Total sales for ${validatedMonth}/${validatedYear}: ${cumulativeSales} orders, ${formatCurrency(cumulativeAmount)}`);
+    
     return {
-      dates,
+      dates: allDates,
       dailySales,
-      dailyAmounts: dailyAmounts.map(amount => parseFloat(amount.toFixed(2))),
-      cumulativeAmounts
+      dailyAmounts,
+      cumulativeSales,
+      cumulativeAmount
     };
   } catch (error) {
-    console.error('Error calculating cumulative sales:', error);
-    console.log('Falling back to sample data');
-    return generateSampleData(month, year);
+    logError('Error calculating cumulative sales', error);
+    throw error instanceof AppError ? error : new AppError('Failed to calculate cumulative sales');
   }
 }
 
@@ -273,6 +260,7 @@ function generateSampleData(month, year) {
     dates,
     dailySales,
     dailyAmounts,
-    cumulativeAmounts
+    cumulativeSales: dailySales.reduce((a, b) => a + b, 0),
+    cumulativeAmount: cumulativeTotal
   };
 } 
