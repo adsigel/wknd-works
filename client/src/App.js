@@ -1,5 +1,5 @@
 import React from 'react';
-import SalesChart from './salesChart';
+import SalesChart from './features/sales/SalesChart';
 import './App.css';
 
 const App = () => {
