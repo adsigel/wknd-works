@@ -1,7 +1,20 @@
 {
-  "dependencies": {
-    "axios": "^1.8.3",
-    "chart.js": "^4.4.8",
-    "cors": "^2.8.5"
+  "name": "wknd-works",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "start": "concurrently \"npm run start:server\" \"npm run start:client\"",
+    "start:server": "cd server && npm start",
+    "start:client": "cd client && npm start",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "clean": "npm run clean --workspaces"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
   }
 }
