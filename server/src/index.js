@@ -9,6 +9,9 @@ import salesRoutes from './routes/sales.js';
 import settingsRoutes from './routes/settings.js';
 import inventoryRoutes from './routes/inventory.js';
 import mongoose from 'mongoose';
+import { requestLogger } from './middleware/requestLogger.js';
+import { errorHandler } from './middleware/errorHandler.js';
+import { logInfo } from './utils/loggingUtils.js';
 
 // ES Module compatibility
 const __filename = fileURLToPath(import.meta.url);
@@ -32,11 +35,8 @@ app.use(cors());
 app.use(express.json());
 app.use(limiter);
 
-// Request logging
-app.use((req, res, next) => {
-  console.log(`${req.method} ${req.path}`);
-  next();
-});
+// Add request logging middleware
+app.use(requestLogger);
 
 // API Routes
 app.use('/api/sales', salesRoutes);
@@ -90,6 +90,9 @@ process.on('unhandledRejection', (error) => {
   console.error('Unhandled Rejection:', error);
   process.exit(1);
 });
+
+// Add error handling middleware (must be last)
+app.use(errorHandler);
 
 // Start server
 async function startServer() {
