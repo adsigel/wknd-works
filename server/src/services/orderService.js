@@ -81,30 +81,30 @@ async function testShopifyConnection() {
 }
 
 export async function calculateCumulativeSales(month, year) {
-  try {
-    // Validate inputs
-    const validatedMonth = validateMonth(month);
-    const validatedYear = validateYear(year);
-    
-    logInfo(`Calculating cumulative sales for ${validatedMonth}/${validatedYear}`);
-    
-    // Get date range
-    const startDate = getFirstDayOfMonth(validatedYear, validatedMonth);
-    const endDate = getLastDayOfMonth(validatedYear, validatedMonth);
-    
-    // Generate all dates for the month
-    const allDates = getAllDatesInMonth(validatedYear, validatedMonth);
-    
-    // Initialize arrays for daily sales and amounts
-    const dailySales = new Array(allDates.length).fill(0);
-    const dailyAmounts = new Array(allDates.length).fill(0);
-    
-    // Check if Shopify credentials are available
-    if (!shopName || !accessToken) {
-      console.log('❌ Shopify credentials not found, using sample data');
-      return generateSampleData(month, year);
-    }
+  // Validate inputs
+  const validatedMonth = validateMonth(month);
+  const validatedYear = validateYear(year);
+  
+  logInfo(`Calculating cumulative sales for ${validatedMonth}/${validatedYear}`);
+  
+  // Get date range
+  const startDate = getFirstDayOfMonth(validatedYear, validatedMonth);
+  const endDate = getLastDayOfMonth(validatedYear, validatedMonth);
+  
+  // Generate all dates for the month
+  const allDates = getAllDatesInMonth(validatedYear, validatedMonth);
+  
+  // Initialize arrays for daily sales and amounts
+  const dailySales = new Array(allDates.length).fill(0);
+  const dailyAmounts = new Array(allDates.length).fill(0);
+  
+  // Check if Shopify credentials are available
+  if (!shopName || !accessToken) {
+    console.log('❌ Shopify credentials not found, using sample data');
+    return generateSampleData(month, year);
+  }
 
+  try {
     // Test Shopify connection before proceeding
     await testShopifyConnection();
 
@@ -165,7 +165,7 @@ export async function calculateCumulativeSales(month, year) {
 
         if (response.data.errors) {
           console.error('GraphQL errors:', response.data.errors);
-          throw new Error('GraphQL query failed: ' + JSON.stringify(response.data.errors));
+          throw new AppError('GraphQL query failed: ' + JSON.stringify(response.data.errors), 500);
         }
 
         const orders = response.data.data.orders.edges;
@@ -202,36 +202,30 @@ export async function calculateCumulativeSales(month, year) {
         hasNextPage = pageInfo.hasNextPage;
         cursor = pageInfo.endCursor;
       } catch (error) {
-        console.error('\n========== SHOPIFY API ERROR ==========');
-        console.error('Error details:', {
-          message: error.message,
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-        });
-        if (error.response?.data) {
-          console.error('Error response data:', JSON.stringify(error.response.data, null, 2));
-        }
-        console.error('========================================\n');
-        throw error;
+        logError('Error fetching orders from Shopify API', error);
+        throw new AppError('Failed to fetch orders from Shopify API', 500);
       }
     }
 
     // Calculate cumulative totals
-    const cumulativeSales = dailySales.reduce((acc, val) => acc + val, 0);
-    const cumulativeAmount = dailyAmounts.reduce((acc, val) => acc + val, 0);
-    
+    const cumulativeSales = dailySales.reduce((sum, val) => sum + val, 0);
+    const cumulativeAmount = dailyAmounts.reduce((sum, val) => sum + val, 0);
+
     logInfo(`Total sales for ${validatedMonth}/${validatedYear}: ${cumulativeSales} orders, ${formatCurrency(cumulativeAmount)}`);
-    
+
     return {
-      dates: allDates,
       dailySales,
       dailyAmounts,
       cumulativeSales,
-      cumulativeAmount
+      cumulativeAmount,
+      dates: allDates
     };
   } catch (error) {
-    logError('Error calculating cumulative sales', error);
-    throw error instanceof AppError ? error : new AppError('Failed to calculate cumulative sales');
+    logError(`Error calculating cumulative sales: ${error.message}`, error);
+    if (error instanceof AppError) {
+      throw error;
+    }
+    throw new AppError('Failed to calculate cumulative sales', 500);
   }
 }
 
