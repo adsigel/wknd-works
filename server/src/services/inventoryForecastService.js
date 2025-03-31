@@ -66,6 +66,7 @@ function calculateDailySales(monthlyGoal, startDate) {
 async function getWeeklySalesGoals(startDate, weeks) {
   const weeklyGoals = [];
   let currentDate = new Date(startDate);
+  const DEFAULT_GOAL = 8500;
   
   for (let i = 0; i < weeks; i++) {
     // Calculate week start and end dates
@@ -83,14 +84,22 @@ async function getWeeklySalesGoals(startDate, weeks) {
       startMonth.getTime() !== endMonth.getTime() ? SalesGoal.findOne({ date: endMonth }) : null
     ]);
     
-    if (!startMonthGoal || (startMonth.getTime() !== endMonth.getTime() && !endMonthGoal)) {
-      throw new AppError(`Missing sales goal for ${startMonth.toISOString()} or ${endMonth.toISOString()}`, 400);
-    }
+    // Use default goal if not found
+    const startGoal = startMonthGoal?.goal || DEFAULT_GOAL;
+    const endGoal = endMonthGoal?.goal || DEFAULT_GOAL;
+    
+    logDebug('Sales goals:', {
+      startMonth: startMonth.toISOString(),
+      endMonth: endMonth.toISOString(),
+      startGoal,
+      endGoal,
+      isSpanningMonths: startMonth.getTime() !== endMonth.getTime()
+    });
     
     // Calculate daily sales for both months
-    const startMonthDailySales = calculateDailySales(startMonthGoal.goal, startMonth);
+    const startMonthDailySales = calculateDailySales(startGoal, startMonth);
     const endMonthDailySales = startMonth.getTime() !== endMonth.getTime() 
-      ? calculateDailySales(endMonthGoal.goal, endMonth)
+      ? calculateDailySales(endGoal, endMonth)
       : null;
     
     // Calculate which days in each month are part of this week
