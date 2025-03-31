@@ -1,4 +1,6 @@
 import axios from 'axios';
+import Inventory from '../models/Inventory.js';
+import { logError, logInfo, logDebug } from '../utils/loggingUtils.js';
 
 /**
  * Shopify API Service
@@ -333,6 +335,95 @@ export default class ShopifyService {
         reportId: reportId
       };
     } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Syncs Shopify inventory data with our local inventory model
+   * @returns {Promise<Object>} Summary of sync operation
+   */
+  async syncInventory() {
+    try {
+      const products = await this.getProducts();
+      let created = 0;
+      let updated = 0;
+      let skipped = 0;
+      let errors = 0;
+
+      for (const product of products) {
+        for (const variant of product.variants) {
+          try {
+            if (variant.inventory_quantity <= 0) {
+              skipped++;
+              continue;
+            }
+
+            const inventoryData = {
+              productId: `${product.id}-${variant.id}`,
+              shopifyProductId: product.id,
+              variant: {
+                id: variant.id,
+                title: variant.title,
+                sku: variant.sku
+              },
+              name: product.title + (variant.title !== 'Default Title' ? ` - ${variant.title}` : ''),
+              category: product.product_type || 'Uncategorized',
+              currentStock: variant.inventory_quantity,
+              retailPrice: parseFloat(variant.price),
+              costPrice: parseFloat(variant.price) * 0.5, // Default to 50% margin if cost not available
+              discountFactor: variant.compare_at_price ? 
+                parseFloat(variant.price) / parseFloat(variant.compare_at_price) : 
+                1.0,
+              shrinkageFactor: 0.98, // Default 2% shrinkage
+              lastUpdated: new Date(),
+              lastReceivedDate: new Date(variant.created_at), // Use variant creation date as initial received date
+              averageDailySales: 0 // Will be calculated separately
+            };
+
+            const existingItem = await Inventory.findOne({ 
+              shopifyProductId: product.id,
+              'variant.id': variant.id 
+            });
+
+            if (existingItem) {
+              await Inventory.updateOne(
+                { _id: existingItem._id },
+                { 
+                  $set: {
+                    ...inventoryData,
+                    lastReceivedDate: existingItem.lastReceivedDate // Preserve existing lastReceivedDate
+                  }
+                }
+              );
+              updated++;
+            } else {
+              await Inventory.create(inventoryData);
+              created++;
+            }
+          } catch (error) {
+            logError('Error syncing variant:', {
+              productId: product.id,
+              variantId: variant.id,
+              error: error.message
+            });
+            errors++;
+          }
+        }
+      }
+
+      const summary = {
+        created,
+        updated,
+        skipped,
+        errors,
+        total: created + updated + skipped
+      };
+
+      logInfo('Inventory sync completed:', summary);
+      return summary;
+    } catch (error) {
+      logError('Failed to sync inventory:', error);
       throw error;
     }
   }

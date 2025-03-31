@@ -30,43 +30,11 @@
   background-color: #1a231d;
 }
 
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 20px;
-  margin-bottom: 24px;
-}
-
-.stat-card {
-  background: white;
-  border-radius: 8px;
-  padding: 16px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.stat-card h3 {
-  margin: 0 0 8px 0;
-  color: #666;
-  font-size: 14px;
-}
-
-.stat-label {
-  color: #666;
-  font-size: 0.9rem;
-  margin-bottom: 8px;
-}
-
-.stat-value {
-  color: #333;
-  font-size: 1.5rem;
-  font-weight: 500;
-}
-
-.chart-container {
-  height: 400px;
+.forecast-chart {
+  height: 600px;
   margin-bottom: 24px;
   background-color: white;
-  padding: 16px;
+  padding: 24px;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
@@ -176,12 +144,9 @@
     align-items: flex-start;
   }
 
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .chart-container {
-    height: 300px;
+  .forecast-chart {
+    height: 400px;
+    padding: 16px;
   }
 
   .threshold-alerts {

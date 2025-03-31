@@ -71,6 +71,12 @@ const inventorySchema = new mongoose.Schema({
     required: true,
     default: Date.now
   },
+  lastReceivedDate: {
+    type: Date,
+    required: true,
+    default: Date.now,
+    index: true  // Add index for efficient querying
+  },
   historicalMovement: [{
     date: Date,
     quantity: Number,
@@ -99,6 +105,7 @@ inventorySchema.index({ shopifyProductId: 1, 'variant.id': 1 }, { unique: true }
 // Add indexes for common queries
 inventorySchema.index({ category: 1 });
 inventorySchema.index({ lastUpdated: 1 });
+inventorySchema.index({ lastReceivedDate: 1 }); // Add index for lastReceivedDate
 
 // Virtual for days of inventory remaining
 inventorySchema.virtual('daysOfInventoryRemaining').get(function() {

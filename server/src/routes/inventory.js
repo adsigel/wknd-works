@@ -2,6 +2,7 @@ import express from 'express';
 import ShopifyService from '../services/shopifyService.js';
 import { InventoryValueService } from '../services/inventoryValueService.js';
 import Inventory from '../models/Inventory.js';
+import { logError } from '../utils/loggingUtils.js';
 
 const router = express.Router();
 
@@ -35,19 +36,35 @@ router.get('/validate-shopify', async (req, res) => {
   }
 });
 
-// Sync inventory from Shopify
+// Sync inventory with Shopify
 router.post('/sync', async (req, res) => {
-  console.log('Handling sync request');
   try {
-    const inventoryValueService = new InventoryValueService();
-    const result = await inventoryValueService.syncInventoryFromShopify();
-    res.json(result);
+    const shopifyService = new ShopifyService(
+      process.env.SHOPIFY_SHOP_NAME,
+      process.env.SHOPIFY_ACCESS_TOKEN
+    );
+
+    // Validate Shopify access first
+    const accessCheck = await shopifyService.validateAccess();
+    if (!accessCheck.hasAllRequiredScopes) {
+      return res.status(400).json({
+        error: 'Missing required Shopify API scopes',
+        details: accessCheck.message
+      });
+    }
+
+    // Perform the sync
+    const summary = await shopifyService.syncInventory();
+    
+    res.json({
+      message: 'Inventory sync completed successfully',
+      summary
+    });
   } catch (error) {
-    console.error('Sync error details:', error);
+    logError('Error syncing inventory with Shopify:', error);
     res.status(500).json({
-      success: false,
-      error: error.message,
-      details: error.response?.data
+      error: 'Failed to sync inventory',
+      details: error.message
     });
   }
 });

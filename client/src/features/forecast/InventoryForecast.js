@@ -241,21 +241,6 @@ const InventoryForecast = () => {
 
       {!loading && !error && forecast && (
         <>
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-label">Current Inventory Value</div>
-              <div className="stat-value">{formatCurrency(forecast.currentState.totalRetailValue)}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-label">Discounted Value</div>
-              <div className="stat-value">{formatCurrency(forecast.currentState.totalDiscountedValue)}</div>
-            </div>
-            <div className="stat-card">
-              <div className="stat-label">Cost Value</div>
-              <div className="stat-value">{formatCurrency(forecast.currentState.totalInventoryCost)}</div>
-            </div>
-          </div>
-
           <InventoryAgeBreakdown inventoryData={forecast.inventoryData} />
 
           <div className="forecast-chart">
@@ -264,7 +249,18 @@ const InventoryForecast = () => {
 
           <div className="threshold-alerts">
             {(() => {
-              const firstBelowThreshold = forecast.weeklyProjections.find(proj => proj.isBelowThreshold);
+              console.log('Weekly projections:', forecast.weeklyProjections);
+              const firstBelowThreshold = forecast.weeklyProjections.find(proj => {
+                console.log('Checking projection:', {
+                  weekStart: proj.weekStart,
+                  endingDiscountedValue: proj.endingDiscountedValue,
+                  projectedSales: proj.projectedSales,
+                  isBelowThreshold: proj.isBelowThreshold
+                });
+                return proj.isBelowThreshold;
+              });
+              console.log('First below threshold:', firstBelowThreshold);
+              
               if (firstBelowThreshold) {
                 const minimumBuffer = forecast.configuration.minimumWeeksBuffer;
                 const minimumBufferValue = firstBelowThreshold.projectedSales * minimumBuffer;

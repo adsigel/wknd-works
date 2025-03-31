@@ -54,7 +54,8 @@ router.post('/test', async (req, res) => {
         endingRetailValue: week.endingRetailValue,
         endingDiscountedValue: week.endingDiscountedValue,
         isBelowThreshold: week.isBelowThreshold
-      }))
+      })),
+      inventoryData: forecast.inventoryData
     };
     
     res.json(formattedForecast);

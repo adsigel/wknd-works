@@ -15,85 +15,64 @@ dotenv.config({ path: path.join(workspaceDir, '.env') });
 
 const testInventory = [
   {
-    productId: 'TEST-001',
-    shopifyProductId: '123456789',
+    productId: 'prod_1',
+    shopifyProductId: 'shopify_1',
     variant: {
-      id: '987654321',
-      title: 'Default',
-      sku: 'TEST-001'
+      id: 'var_1',
+      title: '3-4T',
+      sku: 'NS-TD-3T'
     },
-    name: 'Test Product 1',
-    category: 'Test Category',
-    currentStock: 100,
-    costPrice: 50,
-    retailPrice: 100,
+    name: 'Norsu Toddler Fleece Collar Sweatshirt Dress in Twig - 3-4T',
+    category: 'Toddler',
+    currentStock: 10,
+    costPrice: 750,
+    retailPrice: 1500,
     discountFactor: 1.0,
     shrinkageFactor: 0.98,
-    lastUpdated: new Date(),
-    historicalMovement: [
-      {
-        date: new Date(),
-        quantity: -5,
-        type: 'sale',
-        price: 100
-      }
-    ],
-    averageDailySales: 5,
-    lastReceivedDate: new Date()
+    lastUpdated: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000), // 15 days ago
+    lastReceivedDate: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000), // 15 days ago
+    historicalMovement: [],
+    averageDailySales: 0.5
   },
   {
-    productId: 'TEST-002',
-    shopifyProductId: '123456790',
+    productId: 'prod_2',
+    shopifyProductId: 'shopify_2',
     variant: {
-      id: '987654322',
-      title: 'Default',
-      sku: 'TEST-002'
+      id: 'var_2',
+      title: '5-6T',
+      sku: 'NS-TD-5T'
     },
-    name: 'Test Product 2',
-    category: 'Test Category',
-    currentStock: 75,
-    costPrice: 30,
-    retailPrice: 60,
-    discountFactor: 0.9,
+    name: 'Norsu Toddler Fleece Collar Sweatshirt Dress in Twig - 5-6T',
+    category: 'Toddler',
+    currentStock: 5,
+    costPrice: 750,
+    retailPrice: 1500,
+    discountFactor: 0.8, // 20% discount
     shrinkageFactor: 0.98,
-    lastUpdated: new Date(),
-    historicalMovement: [
-      {
-        date: new Date(),
-        quantity: -3,
-        type: 'sale',
-        price: 60
-      }
-    ],
-    averageDailySales: 3,
-    lastReceivedDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // 30 days ago
+    lastUpdated: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000), // 45 days ago
+    lastReceivedDate: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000), // 45 days ago
+    historicalMovement: [],
+    averageDailySales: 0.3
   },
   {
-    productId: 'TEST-003',
-    shopifyProductId: '123456791',
+    productId: 'prod_3',
+    shopifyProductId: 'shopify_3',
     variant: {
-      id: '987654323',
-      title: 'Default',
-      sku: 'TEST-003'
+      id: 'var_3',
+      title: '7-8T',
+      sku: 'NS-TD-7T'
     },
-    name: 'Test Product 3',
-    category: 'Test Category',
-    currentStock: 50,
-    costPrice: 20,
-    retailPrice: 40,
-    discountFactor: 0.8,
+    name: 'Norsu Toddler Fleece Collar Sweatshirt Dress in Twig - 7-8T',
+    category: 'Toddler',
+    currentStock: 3,
+    costPrice: 750,
+    retailPrice: 1500,
+    discountFactor: 0.6, // 40% discount
     shrinkageFactor: 0.98,
-    lastUpdated: new Date(),
-    historicalMovement: [
-      {
-        date: new Date(),
-        quantity: -2,
-        type: 'sale',
-        price: 40
-      }
-    ],
-    averageDailySales: 2,
-    lastReceivedDate: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000) // 60 days ago
+    lastUpdated: new Date(Date.now() - 95 * 24 * 60 * 60 * 1000), // 95 days ago
+    lastReceivedDate: new Date(Date.now() - 95 * 24 * 60 * 60 * 1000), // 95 days ago
+    historicalMovement: [],
+    averageDailySales: 0.1
   }
 ];
 
