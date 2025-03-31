@@ -207,13 +207,18 @@ function generateWeeklyProjections(
     // Calculate weekly sales (default to 0 if not provided)
     const weeklySalesAmount = weeklySales[i] || 0;
 
-    // Calculate ending values
+    // Calculate ending retail value
     const endingRetailValue = Math.max(0, currentRetailValue - weeklySalesAmount);
-    const endingDiscountedValue = Math.max(0, currentDiscountedValue - weeklySalesAmount);
-    const endingCost = Math.max(0, currentCost - (weeklySalesAmount * (currentCost / currentRetailValue)));
+    
+    // Calculate ending discounted value using the progressive discount
+    const endingDiscountedValue = calculateDiscountedValue(endingRetailValue, weekStart);
+
+    // Calculate ending cost proportionally
+    const endingCost = Math.max(0, currentCost * (endingRetailValue / currentRetailValue));
 
     // Check if inventory is below threshold using discounted value
-    const isBelowThreshold = endingDiscountedValue < (weeklySalesAmount * 6); // 6 weeks buffer
+    const minimumBuffer = weeklySalesAmount * 6; // 6 weeks buffer
+    const isBelowThreshold = endingDiscountedValue < minimumBuffer;
 
     // Update current values for next week
     currentRetailValue = endingRetailValue;
@@ -227,7 +232,8 @@ function generateWeeklyProjections(
       endingRetailValue,
       endingDiscountedValue,
       endingCost,
-      isBelowThreshold
+      isBelowThreshold,
+      minimumBuffer // Add this for debugging
     });
   }
 
@@ -282,7 +288,10 @@ export async function updateInventoryForecast(startDate, forecastPeriodWeeks = 1
       const aggregateValues = {
         totalInventoryCost: validInventoryItems.reduce((sum, item) => sum + (item.currentStock * item.costPrice), 0),
         totalRetailValue: validInventoryItems.reduce((sum, item) => sum + (item.currentStock * item.retailPrice), 0),
-        totalDiscountedValue: validInventoryItems.reduce((sum, item) => sum + (item.currentStock * item.retailPrice), 0) // No discount for now
+        totalDiscountedValue: validInventoryItems.reduce((sum, item) => {
+          const retailValue = item.currentStock * item.retailPrice;
+          return sum + calculateDiscountedValue(retailValue, new Date());
+        }, 0)
       };
 
       logDebug('Aggregate values:', aggregateValues);
@@ -304,21 +313,42 @@ export async function updateInventoryForecast(startDate, forecastPeriodWeeks = 1
       // Process inventory items for age breakdown
       const inventoryData = validInventoryItems
         .map(item => {
-          const lastReceived = new Date(item.lastReceivedDate);
+          const lastReceived = new Date(item.lastReceivedDate || item._id.getTimestamp());
           const age = Math.max(0, Math.floor((new Date() - lastReceived) / (1000 * 60 * 60 * 24)));
           
+          logDebug('Processing item for age breakdown:', {
+            id: item._id,
+            name: item.name,
+            lastReceived: lastReceived.toISOString(),
+            age,
+            quantity: item.currentStock,
+            retailPrice: item.retailPrice
+          });
+
           return {
             id: item._id,
             name: item.name || 'Unnamed Item',
             quantity: item.currentStock,
             retailPrice: item.retailPrice,
             costPrice: item.costPrice,
-            lastReceivedDate: lastReceived,
-            age: age
+            lastReceivedDate: lastReceived.toISOString(),
+            age
           };
-        });
+        })
+        .filter(item => item.quantity > 0);
 
-      logDebug('Processed inventory data:', inventoryData);
+      logDebug('Processed inventory data:', {
+        totalItems: inventoryData.length,
+        sampleItem: inventoryData[0],
+        ageDistribution: inventoryData.reduce((acc, item) => {
+          const ageGroup = item.age <= 30 ? '0-30' :
+                          item.age <= 60 ? '31-60' :
+                          item.age <= 90 ? '61-90' :
+                          item.age <= 120 ? '91-120' : '120+';
+          acc[ageGroup] = (acc[ageGroup] || 0) + 1;
+          return acc;
+        }, {})
+      });
 
       // Create forecast document
       const forecastData = {
@@ -333,11 +363,7 @@ export async function updateInventoryForecast(startDate, forecastPeriodWeeks = 1
           minimumWeeksBuffer: 6,
           leadTimeWeeks: 2
         },
-        weeklyProjections: weeklyProjections.map(proj => ({
-          ...proj,
-          endingDiscountedValue: calculateDiscountedValue(proj.endingRetailValue, proj.weekStart),
-          isBelowThreshold: proj.endingDiscountedValue < (proj.projectedSales * 6)
-        })),
+        weeklyProjections, // Use projections as is, don't recalculate discounted values
         inventoryData
       };
 
@@ -390,18 +416,18 @@ export async function refreshForecast(forecastPeriodWeeks = 12) {
  * @returns {Promise<Object>} The forecast
  */
 export async function getForecast() {
-  try {
-    const forecast = await InventoryForecast.findOne();
-    
-    if (!forecast) {
-      throw new AppError('No forecast found', 404);
-    }
-    
-    return forecast;
-  } catch (error) {
-    logError('Error getting forecast', error);
-    throw error;
+  const forecast = await InventoryForecast.findOne().sort({ createdAt: -1 });
+  if (!forecast) {
+    throw new Error('No forecast found');
   }
+
+  // Get age distribution using the new efficient method
+  const ageDistribution = await getInventoryAgeDistribution();
+  
+  return {
+    ...forecast.toObject(),
+    inventoryData: ageDistribution
+  };
 }
 
 /**
@@ -453,4 +479,134 @@ function calculateDiscountedValue(retailValue, projectionDate) {
   else if (daysInFuture > 0) discountFactor = 0.85;  // 15% discount
   
   return retailValue * discountFactor;
+}
+
+async function getInventoryAgeDistribution() {
+  const now = new Date();
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(now.getDate() - 30);
+  const sixtyDaysAgo = new Date(now);
+  sixtyDaysAgo.setDate(now.getDate() - 60);
+  const ninetyDaysAgo = new Date(now);
+  ninetyDaysAgo.setDate(now.getDate() - 90);
+
+  const ageDistribution = await Inventory.aggregate([
+    {
+      $match: {
+        currentStock: { $gt: 0 }  // Only include items with stock
+      }
+    },
+    {
+      $facet: {
+        '0-30': [
+          { $match: { lastReceivedDate: { $gte: thirtyDaysAgo } } },
+          {
+            $group: {
+              _id: null,
+              count: { $sum: 1 },
+              retailValue: { $sum: { $multiply: ['$currentStock', '$retailPrice'] } },
+              discountedValue: { 
+                $sum: { 
+                  $multiply: ['$currentStock', '$retailPrice', '$discountFactor', '$shrinkageFactor'] 
+                } 
+              }
+            }
+          }
+        ],
+        '31-60': [
+          { 
+            $match: { 
+              lastReceivedDate: { 
+                $lt: thirtyDaysAgo, 
+                $gte: sixtyDaysAgo 
+              } 
+            } 
+          },
+          {
+            $group: {
+              _id: null,
+              count: { $sum: 1 },
+              retailValue: { $sum: { $multiply: ['$currentStock', '$retailPrice'] } },
+              discountedValue: { 
+                $sum: { 
+                  $multiply: ['$currentStock', '$retailPrice', '$discountFactor', '$shrinkageFactor'] 
+                } 
+              }
+            }
+          }
+        ],
+        '61-90': [
+          { 
+            $match: { 
+              lastReceivedDate: { 
+                $lt: sixtyDaysAgo, 
+                $gte: ninetyDaysAgo 
+              } 
+            } 
+          },
+          {
+            $group: {
+              _id: null,
+              count: { $sum: 1 },
+              retailValue: { $sum: { $multiply: ['$currentStock', '$retailPrice'] } },
+              discountedValue: { 
+                $sum: { 
+                  $multiply: ['$currentStock', '$retailPrice', '$discountFactor', '$shrinkageFactor'] 
+                } 
+              }
+            }
+          }
+        ],
+        '90+': [
+          { 
+            $match: { 
+              lastReceivedDate: { $lt: ninetyDaysAgo } 
+            } 
+          },
+          {
+            $group: {
+              _id: null,
+              count: { $sum: 1 },
+              retailValue: { $sum: { $multiply: ['$currentStock', '$retailPrice'] } },
+              discountedValue: { 
+                $sum: { 
+                  $multiply: ['$currentStock', '$retailPrice', '$discountFactor', '$shrinkageFactor'] 
+                } 
+              }
+            }
+          }
+        ],
+        total: [
+          {
+            $group: {
+              _id: null,
+              count: { $sum: 1 },
+              retailValue: { $sum: { $multiply: ['$currentStock', '$retailPrice'] } },
+              discountedValue: { 
+                $sum: { 
+                  $multiply: ['$currentStock', '$retailPrice', '$discountFactor', '$shrinkageFactor'] 
+                } 
+              }
+            }
+          }
+        ]
+      }
+    }
+  ]);
+
+  // Format the results
+  const distribution = ageDistribution[0];
+  const total = distribution.total[0] || { count: 0, retailValue: 0, discountedValue: 0 };
+
+  // Convert to array format expected by frontend
+  return ['0-30', '31-60', '61-90', '90+'].map(range => {
+    const bucket = distribution[range][0] || { count: 0, retailValue: 0, discountedValue: 0 };
+    return {
+      range,
+      count: bucket.count,
+      retailValue: bucket.retailValue,
+      discountedValue: bucket.discountedValue,
+      percentage: total.count > 0 ? (bucket.count / total.count) * 100 : 0
+    };
+  });
 } 
