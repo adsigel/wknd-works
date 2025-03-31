@@ -8,6 +8,7 @@ import { connectDatabase } from './config/database.js';
 import salesRoutes from './routes/sales.js';
 import settingsRoutes from './routes/settings.js';
 import inventoryRoutes from './routes/inventory.js';
+import inventoryForecastRoutes from './routes/inventoryForecast.js';
 import mongoose from 'mongoose';
 import { requestLogger } from './middleware/requestLogger.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -42,6 +43,7 @@ app.use(requestLogger);
 app.use('/api/sales', salesRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/inventory', inventoryRoutes);
+app.use('/api/inventory-forecast', inventoryForecastRoutes);
 
 // Serve static files from React build directory
 const clientBuildPath = path.join(workspaceDir, 'client', 'build');

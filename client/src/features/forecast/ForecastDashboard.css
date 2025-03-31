@@ -1,0 +1,71 @@
+.forecast-dashboard {
+  padding: 24px;
+  background-color: #f8f9fa;
+  min-height: 100vh;
+}
+
+.tabs {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid #e9ecef;
+  padding-bottom: 16px;
+}
+
+.tab {
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 500;
+  color: #666;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab:hover {
+  color: #2c3d2f;
+  background-color: #f1f3f5;
+}
+
+.tab.active {
+  color: #2c3d2f;
+  background-color: #e9ecef;
+  border-bottom: 2px solid #2c3d2f;
+  margin-bottom: -18px;
+}
+
+.tab-content {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  padding: 24px;
+}
+
+.sales-forecast,
+.inventory-forecast {
+  min-height: 600px;
+}
+
+@media (max-width: 768px) {
+  .forecast-dashboard {
+    padding: 16px;
+  }
+
+  .tabs {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .tab {
+    width: 100%;
+    text-align: left;
+  }
+
+  .tab.active {
+    margin-bottom: 0;
+    border-bottom: none;
+    border-left: 2px solid #2c3d2f;
+  }
+} 

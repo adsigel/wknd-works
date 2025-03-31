@@ -19,11 +19,144 @@ class InventoryValueService {
   }
 
   /**
+   * Get cost data for a variant from Shopify with rate limiting
+   */
+  async _getVariantCost(shopifyService, variant) {
+    try {
+      // Debug log the variant data
+      console.log('Fetching cost for variant:', {
+        variantId: variant.id,
+        inventoryItemId: variant.inventory_item_id,
+        sku: variant.sku
+      });
+
+      // First try to get cost from inventory item
+      const inventoryItemResponse = await shopifyService.client.get(
+        `/admin/api/2024-01/inventory_items/${variant.inventory_item_id}.json`
+      );
+      const inventoryItem = inventoryItemResponse.data.inventory_item;
+      
+      if (inventoryItem.cost) {
+        console.log('Found cost in inventory item:', inventoryItem.cost);
+        return parseFloat(inventoryItem.cost);
+      }
+
+      // If no cost in inventory item, try inventory item costs
+      const costsResponse = await shopifyService.client.get(
+        `/admin/api/2024-01/inventory_items/${variant.inventory_item_id}/costs.json`
+      );
+      
+      const costs = costsResponse.data.costs;
+      if (costs && costs.length > 0) {
+        const latestCost = costs.reduce((latest, current) => {
+          return new Date(current.created_at) > new Date(latest.created_at) ? current : latest;
+        });
+        console.log('Found cost in costs array:', latestCost.cost);
+        return parseFloat(latestCost.cost);
+      }
+
+      console.log('No cost found for variant');
+      return null;
+    } catch (error) {
+      // Handle rate limiting
+      if (error.response && error.response.status === 429) {
+        console.log('Rate limited, waiting 1 second before retry');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return this._getVariantCost(shopifyService, variant);
+      }
+      
+      // Log other errors but don't retry
+      console.warn(`Failed to fetch cost for variant ${variant.id}: ${error.message}`);
+      if (error.response) {
+        console.warn('Error response:', {
+          status: error.response.status,
+          data: error.response.data
+        });
+      }
+      return null;
+    }
+  }
+
+  /**
+   * Calculate values for a variant
+   */
+  async _calculateVariantValues(variant, product) {
+    let retailPrice = 0;
+    if (variant.compare_at_price && parseFloat(variant.compare_at_price) > 0) {
+      retailPrice = parseFloat(variant.compare_at_price);
+    } else if (variant.price && parseFloat(variant.price) > 0) {
+      retailPrice = parseFloat(variant.price);
+    } else {
+      return null;
+    }
+
+    // Use 50% margin assumption for cost calculation
+    const costPrice = retailPrice * 0.5;
+    
+    const currentStock = variant.inventory_quantity;
+    const variantRetailValue = currentStock * retailPrice;
+    const variantCostValue = currentStock * costPrice;
+
+    // Calculate discount based on age using created_at for inventory age
+    const productDate = new Date(variant.created_at);
+    const daysInInventory = Math.floor((new Date() - productDate) / (1000 * 60 * 60 * 24));
+    
+    let discount = 0;
+    if (daysInInventory >= 90) discount = 0.4;
+    else if (daysInInventory >= 60) discount = 0.25;
+    else if (daysInInventory >= 30) discount = 0.15;
+    
+    const discountedValue = variantRetailValue * (1 - discount);
+
+    return {
+      retailPrice,
+      costPrice,
+      currentStock,
+      retailValue: variantRetailValue,
+      costValue: variantCostValue,
+      discountedValue,
+      discount,
+      daysInInventory
+    };
+  }
+
+  /**
+   * Create inventory item for database
+   */
+  _createInventoryItem(product, variant, values) {
+    return {
+      productId: variant.sku || `${product.title}-${variant.title}`,
+      shopifyProductId: product.id,
+      variant: {
+        id: variant.id,
+        title: variant.title,
+        sku: variant.sku,
+        created_at: variant.created_at // Store creation date for age tracking
+      },
+      name: `${product.title} - ${variant.title}`,
+      category: this._extractCategory(product),
+      currentStock: values.currentStock,
+      retailPrice: values.retailPrice,
+      costPrice: values.costPrice,
+      discountFactor: 1 - values.discount,
+      shrinkageFactor: 0.98,
+      daysInInventory: values.daysInInventory, // Store days in inventory
+      lastUpdated: new Date()
+    };
+  }
+
+  /**
    * Sync inventory from Shopify and calculate values
    */
   async syncInventoryFromShopify() {
     try {
-      console.log('Starting inventory sync from Shopify...');
+      const debug = {
+        steps: [],
+        sampleData: {},
+        warnings: []
+      };
+      
+      debug.steps.push('Starting inventory sync from Shopify...');
       
       // Initialize Shopify service with credentials
       const shopName = process.env.SHOPIFY_SHOP_NAME;
@@ -35,110 +168,88 @@ class InventoryValueService {
       
       const shopifyService = new ShopifyService(shopName, accessToken);
       
-      // Get all products and inventory levels from Shopify
-      const products = await shopifyService.getProducts();
-      console.log(`Total products retrieved: ${products.length}`);
-      const locations = await shopifyService.client.get('/admin/api/2024-01/locations.json');
-      const locationId = locations.data.locations[0].id;
-      const inventoryLevels = await shopifyService.getInventoryLevels(locationId);
-
-      console.log(`Found ${products.length} products and ${inventoryLevels.length} inventory levels`);
+      // Get all products from Shopify with timeout
+      const productsPromise = shopifyService.getProducts();
+      const products = await Promise.race([
+        productsPromise,
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Products fetch timeout')), 30000)
+        )
+      ]);
+      
+      debug.steps.push(`Total products retrieved: ${products.length}`);
 
       let totalRetailValue = 0;
       let totalCostValue = 0;
+      let totalDiscountedValue = 0;
       let processedVariants = 0;
       let skippedProducts = 0;
+      let skippedVariants = 0;
       let priceWarnings = [];
+      let inventoryItems = [];
 
-      // Process each product and its variants
+      // Process each product
+      let processedProducts = 0;
       for (const product of products) {
-        if (!product.variants || product.variants.length === 0) {
+        processedProducts++;
+        if (processedProducts % 10 === 0) {
+          debug.steps.push(`Processed ${processedProducts} of ${products.length} products`);
+        }
+
+        // Skip inactive products
+        if (product.status !== 'ACTIVE') {
           skippedProducts++;
           continue;
         }
 
+        // Handle products without variants
+        if (!product.variants || product.variants.length === 0) {
+          const variant = {
+            id: product.id,
+            title: product.title,
+            price: product.price,
+            compare_at_price: product.compare_at_price,
+            sku: product.sku,
+            inventory_quantity: product.inventory_quantity || 0,
+            created_at: product.created_at,
+            updated_at: product.updated_at
+          };
+          product.variants = [variant];
+        }
+
         // Process each variant
         for (const variant of product.variants) {
-          const inventoryLevel = inventoryLevels.find(
-            level => level.inventory_item_id === variant.inventory_item_id
-          );
-
-          if (!inventoryLevel) {
+          // Skip variants with no inventory
+          if (variant.inventory_quantity <= 0) {
+            skippedVariants++;
             continue;
           }
 
-          const currentStock = inventoryLevel.available;
-
-          // Get retail price with validation
-          let retailPrice = 0;
-          if (variant.compare_at_price && parseFloat(variant.compare_at_price) > 0) {
-            retailPrice = parseFloat(variant.compare_at_price);
-          } else if (variant.price && parseFloat(variant.price) > 0) {
-            retailPrice = parseFloat(variant.price);
-          } else {
+          const values = await this._calculateVariantValues(variant, product);
+          if (!values) {
             priceWarnings.push(`${product.title} - ${variant.title}: No valid price`);
             continue;
           }
 
-          // Get cost from inventory item
-          let costPrice = 0;
-          try {
-            const inventoryItemResponse = await shopifyService.client.get(
-              `/admin/api/2024-01/inventory_items/${variant.inventory_item_id}.json`
-            );
-            costPrice = parseFloat(inventoryItemResponse.data.inventory_item.cost || 0);
-          } catch (error) {
-            // If we can't get the cost, estimate it as 50% of retail
-            costPrice = retailPrice * 0.5;
-          }
+          totalRetailValue += values.retailValue;
+          totalCostValue += values.costValue;
+          totalDiscountedValue += values.discountedValue;
 
-          // Calculate values for this variant
-          const variantRetailValue = currentStock * retailPrice;
-          const variantCostValue = currentStock * costPrice;
-          totalRetailValue += variantRetailValue;
-          totalCostValue += variantCostValue;
-
-          // Update or create inventory record
-          await Inventory.findOneAndUpdate(
-            { 
-              shopifyProductId: product.id,
-              'variant.id': variant.id 
-            },
-            {
-              $set: {
-                productId: variant.sku || variant.id.toString(),
-                name: `${product.title} - ${variant.title}`,
-                category: this._extractCategory(product),
-                currentStock: currentStock,
-                retailPrice: retailPrice,
-                costPrice: costPrice,
-                variant: {
-                  id: variant.id,
-                  title: variant.title,
-                  sku: variant.sku
-                },
-                lastUpdated: new Date()
-              },
-              $setOnInsert: {
-                discountFactor: 1.0,
-                shrinkageFactor: 0.98
-              }
-            },
-            { upsert: true, new: true }
-          );
-
+          const dbInventoryItem = this._createInventoryItem(product, variant, values);
+          inventoryItems.push(dbInventoryItem);
           processedVariants++;
         }
       }
 
-      console.log(`\n=== Sync Summary ===`);
-      console.log(`✅ Processed ${processedVariants} variants`);
-      console.log(`⚠️ Skipped ${skippedProducts} products`);
-      console.log(`💰 Total retail value: ${formatCurrency(totalRetailValue)}`);
-      console.log(`💲 Total cost value: ${formatCurrency(totalCostValue)}`);
+      // Save all inventory items to database
+      if (inventoryItems.length > 0) {
+        await Inventory.deleteMany({});
+        await Inventory.insertMany(inventoryItems);
+        debug.steps.push(`Saved ${inventoryItems.length} inventory items to database`);
+      }
 
-      // Calculate category breakdown using our model
-      const totalValue = await Inventory.getTotalInventoryValue();
+      const potentialProfit = totalRetailValue - totalCostValue;
+      const categoryBreakdown = this._calculateCategoryBreakdown(inventoryItems);
 
       return {
         success: true,
@@ -147,14 +258,27 @@ class InventoryValueService {
           totalProducts: products.length,
           processedVariants,
           skippedProducts,
+          skippedVariants,
           totalRetailValue,
           totalCostValue,
-          potentialProfit: totalRetailValue - totalCostValue,
-          categoryBreakdown: totalValue.byCategory
+          totalDiscountedValue,
+          potentialProfit,
+          categoryBreakdown
         },
         details: {
-          rawTotalValue: totalValue,
-          priceWarnings
+          rawTotalValue: {
+            totalRetailValue,
+            totalCostValue,
+            totalDiscountedValue,
+            totalPotentialProfit: potentialProfit,
+            byCategory: categoryBreakdown
+          },
+          priceWarnings,
+          debug: {
+            steps: debug.steps,
+            sampleData: debug.sampleData,
+            warnings: debug.warnings
+          }
         }
       };
     } catch (error) {
@@ -210,7 +334,11 @@ class InventoryValueService {
 
     // Look for category in tags
     if (product.tags) {
-      const tags = product.tags.split(',').map(tag => tag.trim());
+      // Handle both string and array formats
+      const tags = Array.isArray(product.tags) 
+        ? product.tags 
+        : product.tags.split(',').map(tag => tag.trim());
+      
       const categoryTag = tags.find(tag => tag.toLowerCase().startsWith('category:'));
       if (categoryTag) {
         return categoryTag.split(':')[1].trim();
@@ -252,6 +380,7 @@ class InventoryValueService {
       let totalRetailValue = 0;
       let totalCostValue = 0;
       let totalDiscountedValue = 0;
+      let variantsWithActualCost = 0;
 
       // Process each product
       for (const product of products) {
@@ -268,34 +397,23 @@ class InventoryValueService {
           
           totalVariants++;
           
-          // Calculate values
-          const retailPrice = parseFloat(variant.compare_at_price || variant.price);
-          const costPrice = retailPrice * 0.5; // Assuming 50% margin for now
+          const values = await this._calculateVariantValues(variant, product);
+          if (!values) continue;
           
-          const quantity = variant.inventory_quantity;
-          const variantRetailValue = quantity * retailPrice;
-          const variantCostValue = quantity * costPrice;
+          if (values.hasActualCost) {
+            variantsWithActualCost++;
+          }
           
-          // Apply any discounts based on age
-          const productDate = new Date(variant.updated_at || variant.created_at);
-          const daysInInventory = Math.floor((new Date() - productDate) / (1000 * 60 * 60 * 24));
-          
-          let discount = 0;
-          if (daysInInventory >= 90) discount = 0.4;
-          else if (daysInInventory >= 60) discount = 0.25;
-          else if (daysInInventory >= 30) discount = 0.15;
-          
-          const discountedValue = variantRetailValue * (1 - discount);
-          
-          totalRetailValue += variantRetailValue;
-          totalCostValue += variantCostValue;
-          totalDiscountedValue += discountedValue;
+          totalRetailValue += values.retailValue;
+          totalCostValue += values.costValue;
+          totalDiscountedValue += values.discountedValue;
         }
       }
 
       const summary = {
         totalProducts,
         totalVariants,
+        variantsWithActualCost,
         totalRetailValue,
         totalCostValue,
         totalDiscountedValue,
@@ -319,6 +437,33 @@ class InventoryValueService {
       console.error('Error getting inventory summary:', error);
       throw error;
     }
+  }
+
+  /**
+   * Calculate category breakdown from inventory items
+   * @param {Array} inventoryItems - Array of inventory items
+   * @returns {Object} Category breakdown with totals
+   */
+  _calculateCategoryBreakdown(inventoryItems) {
+    const breakdown = {};
+    
+    for (const item of inventoryItems) {
+      const category = item.category || this.DEFAULT_CATEGORY;
+      
+      if (!breakdown[category]) {
+        breakdown[category] = {
+          retailValue: 0,
+          costValue: 0,
+          itemCount: 0
+        };
+      }
+      
+      breakdown[category].retailValue += item.currentStock * item.retailPrice;
+      breakdown[category].costValue += item.currentStock * item.cost;
+      breakdown[category].itemCount += 1;
+    }
+    
+    return breakdown;
   }
 }
 

@@ -4,6 +4,7 @@ import { Line } from 'react-chartjs-2';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { format } from 'date-fns';
 import { formatCurrency } from '../../utils/formatters';
+import InventoryAgeBreakdown from './InventoryAgeBreakdown';
 import './InventoryForecast.css';
 
 ChartJS.register(
@@ -36,9 +37,8 @@ const InventoryForecast = () => {
       setLoadingStep('connecting');
       console.log('Starting forecast fetch...');
       
-      // Add timeout to the request
       const response = await axios.post(`${API_BASE_URL}/api/inventory-forecast/test`, {}, {
-        timeout: 30000, // 30 second timeout
+        timeout: 30000,
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json'
@@ -46,10 +46,22 @@ const InventoryForecast = () => {
       });
       
       console.log('Response received:', response.status);
-      console.log('Response data:', response.data);
+      console.log('Full forecast data:', JSON.stringify(response.data, null, 2));
       
+      // Transform the data to match the expected structure
+      const transformedData = {
+        ...response.data,
+        currentInventoryValue: response.data.currentState.totalRetailValue,
+        currentDiscountedValue: response.data.currentState.totalDiscountedValue,
+        minimumBuffer: response.data.configuration.minimumWeeksBuffer * response.data.weeklyProjections[0].projectedSales,
+        weeklySalesAmount: response.data.weeklyProjections[0].projectedSales,
+        // Add inventory data array if it exists in the response
+        inventoryData: response.data.inventoryData || []
+      };
+      
+      console.log('Transformed forecast data:', transformedData);
       setLoadingStep('processing');
-      setForecast(response.data);
+      setForecast(transformedData);
       setLoadingStep('complete');
     } catch (error) {
       console.error('Error details:', {
@@ -186,63 +198,92 @@ const InventoryForecast = () => {
   return (
     <div className="inventory-forecast">
       <div className="forecast-header">
-        <h2>12-Week Inventory Forecast</h2>
+        <h2>Inventory Forecast</h2>
         <button 
           className="refresh-button"
           onClick={fetchForecast}
+          disabled={loading}
         >
-          Refresh Data
+          {loading ? 'Refreshing...' : 'Refresh'}
         </button>
       </div>
 
-      <div className="forecast-stats">
-        <div className="stat-card">
-          <h3>Current State</h3>
-          <div className="stat-value">
-            {formatCurrency(forecast.currentState.totalRetailValue)}
+      {loading && (
+        <div className="loading-state">
+          <div className="loading-steps">
+            <div className={`step ${loadingStep >= 1 ? 'active' : ''}`}>
+              Connecting to server...
+            </div>
+            <div className={`step ${loadingStep >= 2 ? 'active' : ''}`}>
+              Fetching inventory data...
+            </div>
+            <div className={`step ${loadingStep >= 3 ? 'active' : ''}`}>
+              Calculating forecast...
+            </div>
+            <div className={`step ${loadingStep >= 4 ? 'active' : ''}`}>
+              Preparing visualization...
+            </div>
           </div>
-          <div className="stat-label">Total Retail Value</div>
         </div>
-        <div className="stat-card">
-          <h3>Discounted Value</h3>
-          <div className="stat-value">
-            {formatCurrency(forecast.currentState.totalDiscountedValue)}
-          </div>
-          <div className="stat-label">Current Value</div>
-        </div>
-        <div className="stat-card">
-          <h3>Cost Value</h3>
-          <div className="stat-value">
-            {formatCurrency(forecast.currentState.totalInventoryCost)}
-          </div>
-          <div className="stat-label">Total Cost</div>
-        </div>
-      </div>
+      )}
 
-      <div className="chart-container">
-        <Line data={chartData} options={options} />
-      </div>
+      {error && (
+        <div className="error-state">
+          <div className="error-message">{error}</div>
+          <button 
+            className="retry-button"
+            onClick={fetchForecast}
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
-      <div className="threshold-alerts">
-        {(() => {
-          const firstBelowThreshold = forecast.weeklyProjections.find(proj => proj.isBelowThreshold);
-          if (firstBelowThreshold) {
-            const minimumBuffer = forecast.configuration.minimumWeeksBuffer;
-            const minimumBufferValue = firstBelowThreshold.projectedSales * minimumBuffer;
-            return (
-              <div className="alert-card">
-                <div className="alert-date">
-                  Suggested Inventory Reorder before week of {format(new Date(firstBelowThreshold.weekStart), 'MMM d')}
-                </div>
-                <div className="alert-message">
-                  Based on your projected sales goals, your discounted inventory value of {formatCurrency(firstBelowThreshold.endingDiscountedValue)} will fall below the minimum buffer of {minimumBuffer} weeks of sales coverage ({formatCurrency(minimumBufferValue)}).
-                </div>
-              </div>
-            );
-          }
-          return null;
-        })()}
-      </div>
+      {!loading && !error && forecast && (
+        <>
+          <div className="stats-grid">
+            <div className="stat-card">
+              <div className="stat-label">Current Inventory Value</div>
+              <div className="stat-value">{formatCurrency(forecast.currentState.totalRetailValue)}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">Discounted Value</div>
+              <div className="stat-value">{formatCurrency(forecast.currentState.totalDiscountedValue)}</div>
+            </div>
+            <div className="stat-card">
+              <div className="stat-label">Cost Value</div>
+              <div className="stat-value">{formatCurrency(forecast.currentState.totalInventoryCost)}</div>
+            </div>
+          </div>
+
+          <InventoryAgeBreakdown inventoryData={forecast.inventoryData} />
+
+          <div className="forecast-chart">
+            <Line data={chartData} options={options} />
+          </div>
+
+          <div className="threshold-alerts">
+            {(() => {
+              const firstBelowThreshold = forecast.weeklyProjections.find(proj => proj.isBelowThreshold);
+              if (firstBelowThreshold) {
+                const minimumBuffer = forecast.configuration.minimumWeeksBuffer;
+                const minimumBufferValue = firstBelowThreshold.projectedSales * minimumBuffer;
+                return (
+                  <div className="alert-card">
+                    <div className="alert-date">
+                      Suggested Inventory Reorder before week of {format(new Date(firstBelowThreshold.weekStart), 'MMM d')}
+                    </div>
+                    <div className="alert-message">
+                      Based on your projected sales goals, your discounted inventory value of {formatCurrency(firstBelowThreshold.endingDiscountedValue)} will fall below the minimum buffer of {minimumBuffer} weeks of sales coverage ({formatCurrency(minimumBufferValue)}).
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+          </div>
+        </>
+      )}
     </div>
   );
 };

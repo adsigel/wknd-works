@@ -7,7 +7,8 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "test": "NODE_OPTIONS=--experimental-vm-modules jest",
-    "clean": "rimraf dist node_modules"
+    "clean": "rimraf dist node_modules",
+    "seed": "node src/scripts/seedTestData.js"
   },
   "dependencies": {
     "@shopify/shopify-api": "^11.11.1",

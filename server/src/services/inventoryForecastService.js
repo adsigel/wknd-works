@@ -132,16 +132,44 @@ async function getWeeklySalesGoals(startDate, weeks) {
  * @returns {Object} Aggregate inventory values
  */
 function calculateAggregateValues(inventoryItems) {
-  return inventoryItems.reduce((acc, item) => {
-    const retailValue = item.currentStock * item.retailPrice;
-    const discountedValue = retailValue * item.discountFactor;
+  logDebug('Calculating aggregates for items:', 
+    inventoryItems.map(item => ({
+      id: item._id,
+      stock: item.currentStock,
+      retail: item.retailPrice,
+      discount: item.discountFactor
+    }))
+  );
+
+  const aggregates = inventoryItems.reduce((acc, item) => {
+    // Ensure all values are numbers and have defaults
+    const currentStock = Number(item.currentStock) || 0;
+    const retailPrice = Number(item.retailPrice) || 0;
+    const costPrice = Number(item.costPrice) || 0;
+    const discountFactor = Number(item.discountFactor) || 1;
+    
+    const retailValue = currentStock * retailPrice;
+    const discountedValue = retailValue * discountFactor;
+    
+    logDebug(`Item calculation:`, {
+      id: item._id,
+      currentStock,
+      retailPrice,
+      costPrice,
+      discountFactor,
+      retailValue,
+      discountedValue
+    });
     
     return {
-      totalInventoryCost: acc.totalInventoryCost + (item.currentStock * item.costPrice),
+      totalInventoryCost: acc.totalInventoryCost + (currentStock * costPrice),
       totalRetailValue: acc.totalRetailValue + retailValue,
       totalDiscountedValue: acc.totalDiscountedValue + discountedValue
     };
   }, { totalInventoryCost: 0, totalRetailValue: 0, totalDiscountedValue: 0 });
+
+  logDebug('Final aggregate values:', aggregates);
+  return aggregates;
 }
 
 /**
@@ -184,8 +212,8 @@ function generateWeeklyProjections(
     const endingDiscountedValue = Math.max(0, currentDiscountedValue - weeklySalesAmount);
     const endingCost = Math.max(0, currentCost - (weeklySalesAmount * (currentCost / currentRetailValue)));
 
-    // Check if inventory is below threshold
-    const isBelowThreshold = endingRetailValue < (weeklySalesAmount * 6); // 6 weeks buffer
+    // Check if inventory is below threshold using discounted value
+    const isBelowThreshold = endingDiscountedValue < (weeklySalesAmount * 6); // 6 weeks buffer
 
     // Update current values for next week
     currentRetailValue = endingRetailValue;
@@ -193,8 +221,8 @@ function generateWeeklyProjections(
     currentCost = endingCost;
 
     projections.push({
-      weekStart: formatUTCDate(weekStart),
-      weekEnd: formatUTCDate(weekEnd),
+      weekStart: weekStart,
+      weekEnd: weekEnd,
       projectedSales: weeklySalesAmount,
       endingRetailValue,
       endingDiscountedValue,
@@ -213,50 +241,131 @@ function generateWeeklyProjections(
  * @returns {Promise<Object>} Updated forecast
  */
 export async function updateInventoryForecast(startDate, forecastPeriodWeeks = 12) {
-  try {
-    // Get all inventory items
-    const inventoryItems = await Inventory.find();
-    
-    // Calculate aggregate values
-    const aggregateValues = calculateAggregateValues(inventoryItems);
-    
-    // Get weekly sales goals for the forecast period
-    const weeklySales = await getWeeklySalesGoals(startDate, forecastPeriodWeeks);
-    
-    // Generate projections
-    const weeklyProjections = generateWeeklyProjections(
-      startDate,
-      forecastPeriodWeeks,
-      weeklySales,
-      aggregateValues
-    );
-    
-    // Update or create forecast
-    let forecast = await InventoryForecast.findOne();
-    
-    if (!forecast) {
-      forecast = new InventoryForecast({
-        totalInventoryCost: aggregateValues.totalInventoryCost,
-        totalRetailValue: aggregateValues.totalRetailValue,
-        totalDiscountedValue: aggregateValues.totalDiscountedValue,
-        lastShopifyUpdate: new Date(),
-        weeklyProjections,
-        forecastPeriodWeeks
-      });
-    } else {
-      forecast.totalInventoryCost = aggregateValues.totalInventoryCost;
-      forecast.totalRetailValue = aggregateValues.totalRetailValue;
-      forecast.totalDiscountedValue = aggregateValues.totalDiscountedValue;
-      forecast.lastShopifyUpdate = new Date();
-      forecast.weeklyProjections = weeklyProjections;
-      forecast.forecastPeriodWeeks = forecastPeriodWeeks;
+  const MAX_RETRIES = 3;
+  let retryCount = 0;
+
+  while (retryCount < MAX_RETRIES) {
+    try {
+      // Get all inventory items
+      const inventoryItems = await Inventory.find();
+      
+      logDebug('Initial inventory items:', 
+        inventoryItems.map(item => ({
+          id: item._id,
+          name: item.name,
+          stock: item.currentStock,
+          retail: item.retailPrice,
+          cost: item.costPrice,
+          date: item.lastReceivedDate
+        }))
+      );
+
+      // Filter and transform inventory items
+      const validInventoryItems = inventoryItems
+        .map(item => ({
+          ...item.toObject(),
+          currentStock: Number(item.currentStock) || 0,
+          retailPrice: Number(item.retailPrice) || 0,
+          costPrice: Number(item.costPrice) || 0,
+          discountFactor: 1, // Default discount factor
+          lastReceivedDate: item.lastReceivedDate || item._id.getTimestamp()
+        }))
+        .filter(item => item.currentStock > 0 && item.retailPrice > 0);
+
+      logDebug('Valid inventory items:', validInventoryItems);
+
+      if (validInventoryItems.length === 0) {
+        throw new Error('No valid inventory items found with stock and prices');
+      }
+
+      // Calculate aggregate values
+      const aggregateValues = {
+        totalInventoryCost: validInventoryItems.reduce((sum, item) => sum + (item.currentStock * item.costPrice), 0),
+        totalRetailValue: validInventoryItems.reduce((sum, item) => sum + (item.currentStock * item.retailPrice), 0),
+        totalDiscountedValue: validInventoryItems.reduce((sum, item) => sum + (item.currentStock * item.retailPrice), 0) // No discount for now
+      };
+
+      logDebug('Aggregate values:', aggregateValues);
+
+      // Get weekly sales goals and round to 2 decimal places
+      const weeklySales = (await getWeeklySalesGoals(startDate, forecastPeriodWeeks))
+        .map(amount => Math.round(amount * 100) / 100);
+
+      logDebug('Weekly sales goals:', weeklySales);
+
+      // Generate projections
+      const weeklyProjections = generateWeeklyProjections(
+        startDate,
+        forecastPeriodWeeks,
+        weeklySales,
+        aggregateValues
+      );
+
+      // Process inventory items for age breakdown
+      const inventoryData = validInventoryItems
+        .map(item => {
+          const lastReceived = new Date(item.lastReceivedDate);
+          const age = Math.max(0, Math.floor((new Date() - lastReceived) / (1000 * 60 * 60 * 24)));
+          
+          return {
+            id: item._id,
+            name: item.name || 'Unnamed Item',
+            quantity: item.currentStock,
+            retailPrice: item.retailPrice,
+            costPrice: item.costPrice,
+            lastReceivedDate: lastReceived,
+            age: age
+          };
+        });
+
+      logDebug('Processed inventory data:', inventoryData);
+
+      // Create forecast document
+      const forecastData = {
+        currentState: {
+          totalInventoryCost: Math.round(aggregateValues.totalInventoryCost * 100) / 100,
+          totalRetailValue: Math.round(aggregateValues.totalRetailValue * 100) / 100,
+          totalDiscountedValue: Math.round(aggregateValues.totalDiscountedValue * 100) / 100,
+          lastUpdated: new Date()
+        },
+        configuration: {
+          forecastPeriodWeeks,
+          minimumWeeksBuffer: 6,
+          leadTimeWeeks: 2
+        },
+        weeklyProjections: weeklyProjections.map(proj => ({
+          ...proj,
+          endingDiscountedValue: calculateDiscountedValue(proj.endingRetailValue, proj.weekStart),
+          isBelowThreshold: proj.endingDiscountedValue < (proj.projectedSales * 6)
+        })),
+        inventoryData
+      };
+
+      logDebug('Final forecast data:', forecastData);
+
+      // Use findOneAndUpdate with upsert for atomic operation
+      const forecast = await InventoryForecast.findOneAndUpdate(
+        {}, // empty filter to match any document
+        { $set: forecastData },
+        {
+          new: true,
+          upsert: true,
+          runValidators: true
+        }
+      );
+
+      return forecast;
+    } catch (error) {
+      retryCount++;
+      logError(`Attempt ${retryCount} failed:`, error);
+      
+      if (retryCount === MAX_RETRIES) {
+        logError('Error updating inventory forecast after max retries:', error);
+        throw error;
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, Math.random() * 1000));
     }
-    
-    await forecast.save();
-    return forecast;
-  } catch (error) {
-    logError('Error updating inventory forecast', error);
-    throw error;
   }
 }
 
@@ -328,4 +437,20 @@ export async function updateForecastConfig(config) {
     logError('Error updating forecast config', error);
     throw error;
   }
+}
+
+/**
+ * Calculate discounted value based on projected date
+ */
+function calculateDiscountedValue(retailValue, projectionDate) {
+  const now = new Date();
+  const daysInFuture = Math.floor((new Date(projectionDate) - now) / (1000 * 60 * 60 * 24));
+  
+  // Apply progressive discount based on time in future
+  let discountFactor = 1.0;
+  if (daysInFuture > 60) discountFactor = 0.6;  // 40% discount
+  else if (daysInFuture > 30) discountFactor = 0.75;  // 25% discount
+  else if (daysInFuture > 0) discountFactor = 0.85;  // 15% discount
+  
+  return retailValue * discountFactor;
 } 

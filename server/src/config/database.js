@@ -12,7 +12,7 @@ dotenv.config({ path: path.join(workspaceDir, '.env') });
 
 export async function connectDatabase() {
   try {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/wknd-works';
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/inventory-manager';
     console.log('Attempting to connect to MongoDB...');
     console.log('MongoDB URI:', mongoUri);
 
