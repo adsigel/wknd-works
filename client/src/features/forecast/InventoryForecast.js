@@ -39,7 +39,7 @@ const InventoryForecast = () => {
       setLoadingStep('connecting');
       console.log('Starting forecast fetch...');
       
-      const response = await axios.post(`${API_BASE_URL}/api/inventory-forecast/test`, {}, {
+      const response = await axios.get(`${API_BASE_URL}/api/inventory-forecast`, {
         timeout: 30000,
         headers: {
           'Accept': 'application/json',
@@ -48,7 +48,7 @@ const InventoryForecast = () => {
       });
       
       console.log('Response received:', response.status);
-      console.log('Full forecast data:', JSON.stringify(response.data, null, 2));
+      console.log('Minimum weeks buffer from server:', response.data.configuration.minimumWeeksBuffer);
       
       // Transform the data to match the expected structure
       const transformedData = {
@@ -57,11 +57,12 @@ const InventoryForecast = () => {
         currentDiscountedValue: response.data.currentState.totalDiscountedValue,
         minimumBuffer: response.data.configuration.minimumWeeksBuffer * response.data.weeklyProjections[0].projectedSales,
         weeklySalesAmount: response.data.weeklyProjections[0].projectedSales,
-        // Add inventory data array if it exists in the response
         inventoryData: response.data.inventoryData || []
       };
       
-      console.log('Transformed forecast data:', transformedData);
+      console.log('Transformed data minimum buffer:', transformedData.minimumBuffer);
+      console.log('Weekly sales amount:', transformedData.weeklySalesAmount);
+      
       setLoadingStep('processing');
       setForecast(transformedData);
       setLoadingStep('complete');
@@ -93,8 +94,10 @@ const InventoryForecast = () => {
 
   const handleSettingsClose = () => {
     setIsSettingsOpen(false);
-    // Refresh the forecast data to reflect any changes
-    fetchForecast();
+    // Only fetch fresh data if we're not already loading
+    if (!loading) {
+      fetchForecast();
+    }
   };
 
   if (loading) {

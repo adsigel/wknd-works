@@ -189,6 +189,7 @@ function calculateAggregateValues(inventoryItems) {
  * @param {Object} aggregateValues - Current aggregate inventory values
  * @param {Object} discountSettings - The discount settings to use
  * @param {Object} salesDistribution - The sales distribution to use
+ * @param {number} minimumWeeksBuffer - The minimum weeks buffer for threshold calculation
  * @returns {Array<Object>} Array of weekly projections
  */
 async function generateWeeklyProjections(
@@ -197,7 +198,8 @@ async function generateWeeklyProjections(
   weeklySales,
   aggregateValues,
   discountSettings,
-  salesDistribution
+  salesDistribution,
+  minimumWeeksBuffer
 ) {
   const projections = [];
 
@@ -335,7 +337,7 @@ async function generateWeeklyProjections(
     inventoryBuckets = tempBuckets;
 
     // Check if inventory is below threshold
-    const minimumBuffer = weeklySalesAmount * 6;
+    const minimumBuffer = weeklySalesAmount * minimumWeeksBuffer;
     const isBelowThreshold = endingDiscountedValue < minimumBuffer;
 
     projections.push({
@@ -441,7 +443,8 @@ export async function updateInventoryForecast(startDate, forecastPeriodWeeks = 1
           '31-60': 25,
           '61-90': 25,
           '90+': 25
-        }
+        },
+        currentForecast?.configuration?.minimumWeeksBuffer || 6
       );
 
       // Process inventory items for age breakdown
@@ -494,7 +497,7 @@ export async function updateInventoryForecast(startDate, forecastPeriodWeeks = 1
         },
         configuration: {
           forecastPeriodWeeks,
-          minimumWeeksBuffer: 6,
+          minimumWeeksBuffer: currentForecast?.configuration?.minimumWeeksBuffer || 6,
           leadTimeWeeks: 2,
           discountSettings: currentForecast?.configuration?.discountSettings || {
             '0-30': 0,

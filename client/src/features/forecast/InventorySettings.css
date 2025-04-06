@@ -120,28 +120,70 @@
 }
 
 /* Restocking Tab */
+.restocking-tab {
+  padding: 20px;
+}
+
+.restocking-tab h3 {
+  margin: 0 0 10px 0;
+  font-size: 1.2em;
+  color: #333;
+}
+
+.section-description {
+  color: #666;
+  margin-bottom: 20px;
+  font-size: 0.9em;
+  line-height: 1.4;
+}
+
 .restock-info {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
 }
 
 .restock-row {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 12px;
-  background-color: #f9f9f9;
-  border-radius: 4px;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 15px;
 }
 
-.restock-label {
+.restock-row label {
   font-weight: 500;
-  color: #2c3d2f;
+  color: #333;
 }
 
-.restock-value {
+.restock-row .input-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.restock-row input {
+  width: 80px;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1em;
+}
+
+.restock-row input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0,123,255,0.25);
+}
+
+.restock-row .input-suffix {
   color: #666;
+}
+
+.setting-help {
+  color: #666;
+  font-size: 0.85em;
+  margin: 5px 0 0 0;
+  line-height: 1.4;
 }
 
 /* Footer */

@@ -165,4 +165,38 @@ router.post('/discount-settings', async (req, res) => {
   }
 });
 
+// Update restock settings
+router.post('/restock-settings', async (req, res) => {
+  try {
+    const { minimumWeeksBuffer } = req.body;
+    
+    // Validate minimum weeks buffer
+    if (typeof minimumWeeksBuffer !== 'number' || minimumWeeksBuffer < 1 || minimumWeeksBuffer > 52) {
+      return res.status(400).json({ 
+        error: 'Minimum weeks buffer must be a number between 1 and 52' 
+      });
+    }
+
+    // Find the current forecast
+    let forecast = await InventoryForecast.findOne();
+    if (!forecast) {
+      forecast = new InventoryForecast();
+    }
+
+    // Update settings
+    forecast.configuration.minimumWeeksBuffer = minimumWeeksBuffer;
+    await forecast.save();
+
+    // Recalculate forecast with new settings
+    await updateInventoryForecast(new Date());
+
+    // Get updated forecast
+    forecast = await InventoryForecast.findOne();
+    res.json(forecast);
+  } catch (error) {
+    logError('Error updating restock settings:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router; 

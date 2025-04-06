@@ -63,6 +63,33 @@ const DiscountingTab = ({
   );
 };
 
+const RestockingTab = ({ minimumWeeksBuffer, onMinimumWeeksBufferChange }) => {
+  return (
+    <div className="restocking-tab">
+      <h3>Restocking Settings</h3>
+      <p className="section-description">Configure when to trigger restock warnings based on projected inventory levels.</p>
+      <div className="restock-info">
+        <div className="restock-row">
+          <label>Minimum Buffer:</label>
+          <div className="input-group">
+            <input
+              type="number"
+              min="1"
+              max="52"
+              value={minimumWeeksBuffer}
+              onChange={(e) => onMinimumWeeksBufferChange(Math.min(52, Math.max(1, parseInt(e.target.value) || 1)))}
+            />
+            <span className="input-suffix">weeks</span>
+          </div>
+          <p className="setting-help">
+            Trigger restock warnings when projected inventory falls below this many weeks of expected sales.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const InventorySettings = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState('discounting');
   const [isSaving, setIsSaving] = useState(false);
@@ -80,24 +107,26 @@ const InventorySettings = ({ isOpen, onClose }) => {
     '61-90': 25,
     '90+': 25
   });
+  const [minimumWeeksBuffer, setMinimumWeeksBuffer] = useState(6);
 
   const totalSalesDistribution = Object.values(salesDistribution).reduce((sum, value) => sum + value, 0);
 
-  useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const response = await axios.get('/api/inventory-forecast');
-        const forecast = response.data;
-        if (forecast?.configuration) {
-          setDiscountSettings(forecast.configuration.discountSettings);
-          setSalesDistribution(forecast.configuration.salesDistribution);
-        }
-      } catch (error) {
-        console.error('Error fetching settings:', error);
-        setError('Failed to load settings');
+  const fetchSettings = async () => {
+    try {
+      const response = await axios.get('/api/inventory-forecast');
+      const forecast = response.data;
+      if (forecast?.configuration) {
+        setDiscountSettings(forecast.configuration.discountSettings);
+        setSalesDistribution(forecast.configuration.salesDistribution);
+        setMinimumWeeksBuffer(forecast.configuration.minimumWeeksBuffer || 6);
       }
-    };
+    } catch (error) {
+      console.error('Error fetching settings:', error);
+      setError('Failed to load settings');
+    }
+  };
 
+  useEffect(() => {
     if (isOpen) {
       fetchSettings();
     }
@@ -119,8 +148,13 @@ const InventorySettings = ({ isOpen, onClose }) => {
     setHasUnsavedChanges(true);
   };
 
+  const handleMinimumWeeksBufferChange = (value) => {
+    setMinimumWeeksBuffer(value);
+    setHasUnsavedChanges(true);
+  };
+
   const handleSave = async () => {
-    if (totalSalesDistribution !== 100) {
+    if (activeTab === 'discounting' && totalSalesDistribution !== 100) {
       setError('Sales distribution must total 100%');
       return;
     }
@@ -129,11 +163,25 @@ const InventorySettings = ({ isOpen, onClose }) => {
     setError(null);
 
     try {
-      await axios.post('/api/inventory-forecast/discount-settings', {
-        discountSettings,
-        salesDistribution
-      });
+      if (activeTab === 'discounting') {
+        await axios.post('/api/inventory-forecast/discount-settings', {
+          discountSettings,
+          salesDistribution
+        });
+      } else {
+        console.log('Saving minimum weeks buffer:', minimumWeeksBuffer);
+        const response = await axios.post('/api/inventory-forecast/restock-settings', {
+          minimumWeeksBuffer
+        });
+        const forecast = response.data;
+        console.log('Response from server:', forecast);
+        if (forecast?.configuration) {
+          console.log('Setting minimum weeks buffer to:', forecast.configuration.minimumWeeksBuffer);
+          setMinimumWeeksBuffer(forecast.configuration.minimumWeeksBuffer);
+        }
+      }
       setHasUnsavedChanges(false);
+      // Close the modal after successful save
       onClose();
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -167,15 +215,10 @@ const InventorySettings = ({ isOpen, onClose }) => {
 
   const renderRestockingTab = () => {
     return (
-      <div className="restocking-tab">
-        <h3>Restocking Settings</h3>
-        <div className="restock-info">
-          <div className="restock-row">
-            <div className="restock-label">Minimum Buffer</div>
-            <div className="restock-value">6 weeks</div>
-          </div>
-        </div>
-      </div>
+      <RestockingTab
+        minimumWeeksBuffer={minimumWeeksBuffer}
+        onMinimumWeeksBufferChange={handleMinimumWeeksBufferChange}
+      />
     );
   };
 
