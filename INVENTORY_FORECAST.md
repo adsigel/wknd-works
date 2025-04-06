@@ -199,16 +199,40 @@ We've reached a significant production-ready milestone with several key improvem
    - Progressive discounting based on time horizon
    - Proper handling of value degradation over time
 
-2. Threshold Alert System
-   - Alerts now trigger based on discounted value (more conservative)
-   - Clear reorder recommendations with specific dates
-   - Accurate minimum buffer calculations using projected sales
+2. Minimum Buffer Configuration
+   - User-configurable minimum weeks buffer (1-52 weeks)
+   - Persistent configuration stored in database
+   - Real-time chart updates reflecting buffer changes
+   - Threshold alerts based on configured buffer value
+   - Automatic recalculation of projections on buffer changes
 
-3. Visualization Improvements
-   - Clear separation between retail and discounted values
-   - Intuitive minimum buffer threshold line
-   - Percentage-based age breakdown with rounded values
-   - Improved chart readability and proportions
+### Implementation Details
+
+#### Minimum Weeks Buffer
+The minimum weeks buffer is a critical configuration that determines when threshold alerts are triggered. Here's how it works:
+
+1. Configuration
+   - Users can set the buffer between 1-52 weeks in the Settings modal
+   - Default value is 6 weeks if no configuration exists
+   - Value is stored in the `InventoryForecast` collection's configuration
+
+2. Calculation
+   - Weekly sales projection is multiplied by the buffer value
+   - This creates a minimum threshold line on the chart
+   - When projected inventory falls below this line, alerts are triggered
+
+3. Technical Flow
+   - Frontend sends buffer value to `/api/inventory-forecast/restock-settings`
+   - Backend validates and stores the new value
+   - Forecast is recalculated using the new buffer value
+   - Chart and alerts update to reflect the changes
+   - Value persists across page reloads and server restarts
+
+4. Example
+   If minimum buffer is set to 12 weeks and weekly sales are $1000:
+   - Minimum threshold = $12,000
+   - Alert triggers when projected inventory < $12,000
+   - Chart shows horizontal line at $12,000 for reference
 
 ### Technical Achievements
 1. Discount Calculation Improvements
