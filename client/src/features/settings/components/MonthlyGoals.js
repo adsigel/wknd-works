@@ -3,6 +3,8 @@ import axios from 'axios';
 import './MonthlyGoals.css';
 import { format } from 'date-fns';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
 const months = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
@@ -17,7 +19,7 @@ const MonthlyGoals = ({ onGoalsChange }) => {
 
   const fetchMonthlyGoals = async () => {
     try {
-      const response = await axios.get(`/api/sales/goals?year=${selectedYear}`);
+      const response = await axios.get(`${API_BASE_URL}/api/sales/goals?year=${selectedYear}`);
       setGoals(response.data);
       // Initialize tempGoals with current goals
       const initialTempGoals = {};
