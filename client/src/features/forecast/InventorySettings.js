@@ -3,6 +3,8 @@ import axios from 'axios';
 import Modal from '../../components/Modal';
 import './InventorySettings.css';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+
 const DiscountingTab = ({ 
   discountSettings, 
   onDiscountChange,
@@ -113,7 +115,7 @@ const InventorySettings = ({ isOpen, onClose }) => {
 
   const fetchSettings = async () => {
     try {
-      const response = await axios.get('/api/inventory-forecast');
+      const response = await axios.get(`${API_BASE_URL}/api/inventory-forecast`);
       const forecast = response.data;
       if (forecast?.configuration) {
         setDiscountSettings(forecast.configuration.discountSettings);
@@ -164,13 +166,13 @@ const InventorySettings = ({ isOpen, onClose }) => {
 
     try {
       if (activeTab === 'discounting') {
-        await axios.post('/api/inventory-forecast/discount-settings', {
+        await axios.post(`${API_BASE_URL}/api/inventory-forecast/discount-settings`, {
           discountSettings,
           salesDistribution
         });
       } else {
         console.log('Saving minimum weeks buffer:', minimumWeeksBuffer);
-        const response = await axios.post('/api/inventory-forecast/restock-settings', {
+        const response = await axios.post(`${API_BASE_URL}/api/inventory-forecast/restock-settings`, {
           minimumWeeksBuffer
         });
         const forecast = response.data;
