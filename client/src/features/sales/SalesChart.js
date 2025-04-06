@@ -96,28 +96,15 @@ const SalesChart = () => {
   useEffect(() => {
     const fetchSettings = async () => {
       try {
-        console.log('Fetching settings on component mount');
-        const response = await axios.get(`${API_BASE_URL}/api/settings`);
-        console.log('Received settings from server:', response.data);
-        if (response.data) {
-          // Set chart settings with fallback to defaults
-          const newChartSettings = response.data.chartSettings || defaultChartSettings;
-          console.log('Setting chart settings:', newChartSettings);
-          setChartSettings(newChartSettings);
-
-          // Set projection settings with fallback to defaults
-          const newProjectionSettings = response.data.projectionSettings || defaultProjectionSettings;
-          console.log('Setting projection settings:', newProjectionSettings);
-          setProjectionSettings(newProjectionSettings);
-          
-          setSettingsLoaded(true);
-        }
+        const response = await axios.get('/api/settings');
+        const settings = response.data;
+        
+        if (settings.chartSettings) setChartSettings(settings.chartSettings);
+        if (settings.projectionSettings) setProjectionSettings(settings.projectionSettings);
+        setSettingsLoaded(true);
       } catch (error) {
         console.error('Error fetching settings:', error);
-        // Set defaults if we can't load settings
-        setChartSettings(defaultChartSettings);
-        setProjectionSettings(defaultProjectionSettings);
-        setSettingsLoaded(true);
+        setSettingsLoaded(true); // Still set to true so the app can function with defaults
       }
     };
 
@@ -132,74 +119,22 @@ const SalesChart = () => {
     }
   }, [selectedMonth, selectedYear, settingsLoaded]);
 
-  const handleChartSettingsChange = async (newSettings) => {
-    try {
-      console.log('Saving chart settings:', newSettings);
-      const response = await axios.post(`${API_BASE_URL}/api/settings`, {
-        chartSettings: newSettings
-      });
-      
-      if (response.data) {
-        console.log('Successfully saved chart settings:', response.data);
-        setChartSettings(newSettings);
-      } else {
-        console.error('Failed to save chart settings:', response.data);
-        // Revert to previous settings if save failed
-        const settingsResponse = await axios.get(`${API_BASE_URL}/api/settings`);
-        if (settingsResponse.data.chartSettings) {
-          console.log('Reverting to previous chart settings:', settingsResponse.data.chartSettings);
-          setChartSettings(settingsResponse.data.chartSettings);
-        }
-      }
-    } catch (error) {
-      console.error('Error updating chart settings:', error);
-      // Revert to previous settings on error
-      try {
-        const settingsResponse = await axios.get(`${API_BASE_URL}/api/settings`);
-        if (settingsResponse.data.chartSettings) {
-          console.log('Reverting to previous chart settings after error:', settingsResponse.data.chartSettings);
-          setChartSettings(settingsResponse.data.chartSettings);
-        }
-      } catch (e) {
-        console.error('Error reverting settings:', e);
-      }
-    }
+  const handleSettingsClose = () => {
+    setShowSettings(false);
+    // Refresh data when settings are closed (saved)
+    fetchSalesData(selectedMonth, selectedYear);
   };
 
-  const handleProjectionSettingsChange = async (newSettings) => {
-    try {
-      console.log('Saving projection settings:', newSettings);
-      const response = await axios.post(`${API_BASE_URL}/api/settings`, {
-        projectionSettings: newSettings
-      });
-      
-      if (response.data) {
-        console.log('Successfully saved projection settings:', response.data);
-        setProjectionSettings(newSettings);
-        // Refresh sales data to update projections
-        fetchSalesData(selectedMonth, selectedYear);
-      } else {
-        console.error('Failed to save projection settings:', response.data);
-        // Revert to previous settings if save failed
-        const settingsResponse = await axios.get(`${API_BASE_URL}/api/settings`);
-        if (settingsResponse.data.projectionSettings) {
-          console.log('Reverting to previous projection settings:', settingsResponse.data.projectionSettings);
-          setProjectionSettings(settingsResponse.data.projectionSettings);
-        }
-      }
-    } catch (error) {
-      console.error('Error updating projection settings:', error);
-      // Revert to previous settings on error
-      try {
-        const settingsResponse = await axios.get(`${API_BASE_URL}/api/settings`);
-        if (settingsResponse.data.projectionSettings) {
-          console.log('Reverting to previous projection settings after error:', settingsResponse.data.projectionSettings);
-          setProjectionSettings(settingsResponse.data.projectionSettings);
-        }
-      } catch (e) {
-        console.error('Error reverting settings:', e);
-      }
-    }
+  const handleChartSettingsChange = (newSettings) => {
+    setChartSettings(newSettings);
+    // Trigger a re-render of the chart with new settings
+    setDailySales([...dailySales]);
+  };
+
+  const handleProjectionSettingsChange = (newSettings) => {
+    setProjectionSettings(newSettings);
+    // Trigger a re-render of the chart with new settings
+    setDailySales([...dailySales]);
   };
 
   const fetchSalesData = async (month, year) => {
@@ -716,20 +651,14 @@ const SalesChart = () => {
         </div>
       </div>
 
-      {showSettings && (
-        <div className="settings-modal">
-          <div className="settings-content">
-            <Settings
-              onClose={() => setShowSettings(false)}
-              chartSettings={chartSettings}
-              onChartSettingsChange={handleChartSettingsChange}
-              projectionSettings={projectionSettings}
-              onProjectionSettingsChange={handleProjectionSettingsChange}
-              selectedMonth={selectedMonth}
-              selectedYear={selectedYear}
-            />
-          </div>
-        </div>
+      {showSettings && settingsLoaded && (
+        <Settings
+          onClose={handleSettingsClose}
+          chartSettings={chartSettings}
+          onChartSettingsChange={handleChartSettingsChange}
+          projectionSettings={projectionSettings}
+          onProjectionSettingsChange={handleProjectionSettingsChange}
+        />
       )}
     </div>
   );

@@ -8,18 +8,23 @@ const months = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-const MonthlyGoals = () => {
+const MonthlyGoals = ({ onGoalsChange }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [goals, setGoals] = useState([]);
-  const [editingGoal, setEditingGoal] = useState(null);
-  const [tempGoal, setTempGoal] = useState('');
+  const [tempGoals, setTempGoals] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   const fetchMonthlyGoals = async () => {
     try {
-      const response = await axios.get('/api/sales/goals');
+      const response = await axios.get(`/api/sales/goals?year=${selectedYear}`);
       setGoals(response.data);
+      // Initialize tempGoals with current goals
+      const initialTempGoals = {};
+      response.data.forEach(goal => {
+        initialTempGoals[goal.month] = goal.goal.toString();
+      });
+      setTempGoals(initialTempGoals);
       setLoading(false);
     } catch (error) {
       console.error('Error fetching monthly goals:', error);
@@ -28,31 +33,22 @@ const MonthlyGoals = () => {
     }
   };
 
-  const saveMonthlyGoal = async (month, year, goal) => {
-    try {
-      await axios.post('/api/sales/goal', {
-        month,
-        year,
-        goal: Number(goal)
-      });
-      await fetchMonthlyGoals(); // Refresh the goals after saving
-    } catch (error) {
-      console.error('Error saving monthly goal:', error);
-      setError('Failed to save monthly goal');
-    }
-  };
-
   useEffect(() => {
     fetchMonthlyGoals();
-  }, []);
+  }, [selectedYear]);
 
-  const handleGoalUpdate = async (month) => {
-    try {
-      await saveMonthlyGoal(month, selectedYear, tempGoal);
-    } catch (error) {
-      console.error('Error updating goal:', error);
-      setError('Failed to update goal');
-    }
+  const handleGoalChange = (month, value) => {
+    setTempGoals(prev => ({
+      ...prev,
+      [month]: value
+    }));
+    
+    // Notify parent of all current goals
+    const updatedGoals = goals.map(goal => ({
+      ...goal,
+      goal: goal.month === month ? Number(value) || 0 : Number(tempGoals[goal.month] || goal.goal)
+    }));
+    onGoalsChange(updatedGoals);
   };
 
   const formatCurrency = (amount) => {
@@ -85,46 +81,15 @@ const MonthlyGoals = () => {
         {goals.map((goal) => (
           <div key={`${goal.month}-${goal.year}`} className="goal-item">
             <div className="goal-month">{format(new Date(goal.year, goal.month - 1), 'MMMM')}</div>
-            {editingGoal === goal.month ? (
-              <form 
-                className="goal-edit-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleGoalUpdate(goal.month);
-                }}
-              >
-                <input
-                  type="number"
-                  value={tempGoal}
-                  onChange={(e) => setTempGoal(e.target.value)}
-                  placeholder="Enter goal"
-                  autoFocus
-                />
-                <button type="submit">Save</button>
-                <button 
-                  type="button" 
-                  onClick={() => {
-                    setEditingGoal(null);
-                    setTempGoal('');
-                  }}
-                >
-                  Cancel
-                </button>
-              </form>
-            ) : (
-              <div className="goal-value">
-                <span>{formatCurrency(goal.goal)}</span>
-                <button 
-                  className="edit-button"
-                  onClick={() => {
-                    setEditingGoal(goal.month);
-                    setTempGoal(goal.goal.toString());
-                  }}
-                >
-                  Edit
-                </button>
-              </div>
-            )}
+            <div className="goal-input">
+              <span className="currency-symbol">$</span>
+              <input
+                type="number"
+                value={tempGoals[goal.month] || ''}
+                onChange={(e) => handleGoalChange(goal.month, e.target.value)}
+                placeholder="Enter goal"
+              />
+            </div>
           </div>
         ))}
       </div>

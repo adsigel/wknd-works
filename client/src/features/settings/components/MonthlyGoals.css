@@ -2,7 +2,6 @@
   padding: 1.5rem;
   background: #fff;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .year-selector {
@@ -36,6 +35,12 @@
   padding: 1rem;
   border-radius: 6px;
   border: 1px solid #e9ecef;
+  transition: all 0.2s ease;
+}
+
+.goal-item:hover {
+  background: #fff;
+  border-color: #2c3d2f;
 }
 
 .goal-month {
@@ -44,60 +49,38 @@
   margin-bottom: 0.5rem;
 }
 
-.goal-value {
+.goal-input {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  gap: 0.25rem;
+  position: relative;
 }
 
-.goal-value span {
-  font-size: 1.25rem;
-  color: #2c3d2f;
+.currency-symbol {
+  position: absolute;
+  left: 0.75rem;
+  color: #6c757d;
+  font-size: 1rem;
 }
 
-.edit-button {
-  background: none;
-  border: none;
-  color: #007bff;
-  cursor: pointer;
-  font-size: 0.875rem;
-  padding: 0.25rem 0.5rem;
-}
-
-.edit-button:hover {
-  text-decoration: underline;
-}
-
-.goal-edit-form {
-  display: flex;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.goal-edit-form input {
-  flex: 1;
-  padding: 0.5rem;
+.goal-input input {
+  width: 100%;
+  padding: 0.5rem 0.5rem 0.5rem 1.75rem;
   border: 1px solid #ced4da;
   border-radius: 4px;
-  font-size: 0.875rem;
+  font-size: 1rem;
+  color: #2c3d2f;
+  transition: all 0.2s ease;
 }
 
-.goal-edit-form button {
-  padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.875rem;
+.goal-input input:focus {
+  outline: none;
+  border-color: #2c3d2f;
+  box-shadow: 0 0 0 2px rgba(44, 61, 47, 0.1);
 }
 
-.goal-edit-form button[type="submit"] {
-  background: #28a745;
-  color: white;
-}
-
-.goal-edit-form button[type="button"] {
-  background: #6c757d;
-  color: white;
+.goal-input input:hover {
+  border-color: #8fab9e;
 }
 
 .error {
