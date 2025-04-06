@@ -237,73 +237,102 @@ async function generateWeeklyProjections(
     // Calculate weekly sales amount
     const weeklySalesAmount = weeklySales[i] || 0;
 
+    // First apply sales reductions to current buckets
+    let remainingSales = weeklySalesAmount;
+    const targetSalesByBucket = {};
+
+    // Calculate initial target sales for each bucket
+    Object.keys(inventoryBuckets).forEach(bucket => {
+      targetSalesByBucket[bucket] = remainingSales * (salesDistribution[bucket] / 100);
+    });
+
     // Calculate total retail value in each bucket
     const bucketTotals = {};
     let totalRetailValue = 0;
     Object.entries(inventoryBuckets).forEach(([bucket, items]) => {
-      bucketTotals[bucket] = items.reduce((sum, item) => sum + item.retailValue, 0);
+      bucketTotals[bucket] = items.reduce((sum, item) => sum + (item.retailValue || 0), 0);
       totalRetailValue += bucketTotals[bucket];
     });
 
-    // Calculate sales distribution
-    const salesByBucket = {};
-    if (totalRetailValue > 0) {
-      Object.keys(inventoryBuckets).forEach(bucket => {
-        // Use configured distribution or calculate proportional
-        if (salesDistribution[bucket]) {
-          salesByBucket[bucket] = weeklySalesAmount * (salesDistribution[bucket] / 100);
-        } else {
-          // Fallback to proportional if no configuration
-          salesByBucket[bucket] = weeklySalesAmount * (bucketTotals[bucket] / totalRetailValue);
-        }
-      });
-    }
-
-    // Apply sales to each bucket
+    // Adjust sales targets based on available value
     Object.entries(inventoryBuckets).forEach(([bucket, items]) => {
-      const bucketSales = salesByBucket[bucket] || 0;
-      if (bucketSales > 0 && items.length > 0) {
-        const reductionFactor = Math.max(0, 1 - (bucketSales / bucketTotals[bucket]));
-        items.forEach(item => {
-          item.retailValue *= reductionFactor;
-          item.costValue *= reductionFactor;
-        });
+      if (!bucketTotals[bucket] || bucketTotals[bucket] === 0) {
+        targetSalesByBucket[bucket] = 0;
+        return;
+      }
+      
+      if (targetSalesByBucket[bucket] > bucketTotals[bucket]) {
+        const excess = targetSalesByBucket[bucket] - bucketTotals[bucket];
+        targetSalesByBucket[bucket] = bucketTotals[bucket];
+        
+        // Redistribute excess proportionally to other buckets
+        const otherBuckets = Object.entries(inventoryBuckets)
+          .filter(([b]) => b !== bucket && bucketTotals[b] > targetSalesByBucket[b]);
+        
+        const remainingCapacity = otherBuckets
+          .reduce((sum, [b]) => sum + (bucketTotals[b] - targetSalesByBucket[b]), 0);
+        
+        if (remainingCapacity > 0) {
+          otherBuckets.forEach(([b]) => {
+            const share = (bucketTotals[b] - targetSalesByBucket[b]) / remainingCapacity;
+            targetSalesByBucket[b] += excess * share;
+          });
+        }
       }
     });
 
-    // Calculate total values after sales
-    const endingRetailValue = Object.values(inventoryBuckets).reduce((sum, items) => {
-      return sum + items.reduce((bucketSum, item) => bucketSum + item.retailValue, 0);
-    }, 0);
-    const endingDiscountedValue = Object.entries(inventoryBuckets).reduce((sum, [bucket, items]) => {
-      return sum + items.reduce((bucketSum, item) => {
-        return bucketSum + calculateDiscountedValue(item.retailValue, item.age, discountSettings);
-      }, 0);
-    }, 0);
-    const endingCost = Object.values(inventoryBuckets).reduce((sum, items) => {
-      return sum + items.reduce((bucketSum, item) => bucketSum + item.costValue, 0);
-    }, 0);
+    // Apply sales reductions
+    Object.entries(inventoryBuckets).forEach(([bucket, items]) => {
+      if (items.length === 0 || !bucketTotals[bucket] || bucketTotals[bucket] === 0) {
+        return;
+      }
+      
+      const reductionFactor = Math.max(0, 1 - (targetSalesByBucket[bucket] / bucketTotals[bucket]));
+      items.forEach(item => {
+        item.retailValue = (item.retailValue || 0) * reductionFactor;
+        item.costValue = (item.costValue || 0) * reductionFactor;
+      });
+    });
 
-    // Age inventory by one week
-    const newBuckets = {
+    // Now age items and calculate new discounted values
+    const agedItems = Object.values(inventoryBuckets).flat().map(item => {
+      const newAge = item.age + 7;
+      const retailValue = item.retailValue || 0;
+      return {
+        ...item,
+        age: newAge,
+        retailValue,
+        costValue: item.costValue || 0,
+        discountedValue: calculateDiscountedValue(retailValue, newAge, discountSettings)
+      };
+    });
+
+    // Group aged items into new buckets
+    const tempBuckets = {
       '0-30': [],
       '31-60': [],
       '61-90': [],
       '90+': []
     };
 
-    Object.values(inventoryBuckets).flat().forEach(item => {
-      const newAge = item.age + 7;
-      const newBucket = newAge <= 30 ? '0-30' : 
-                       newAge <= 60 ? '31-60' : 
-                       newAge <= 90 ? '61-90' : 
-                       '90+';
-      newBuckets[newBucket].push({
-        ...item,
-        age: newAge
-      });
+    agedItems.forEach(item => {
+      const bucket = item.age <= 30 ? '0-30' : 
+                    item.age <= 60 ? '31-60' : 
+                    item.age <= 90 ? '61-90' : 
+                    '90+';
+      tempBuckets[bucket].push(item);
     });
-    inventoryBuckets = newBuckets;
+
+    // Calculate final values for the week with safeguards against NaN
+    const endingRetailValue = Object.values(tempBuckets).flat()
+      .reduce((sum, item) => sum + (item.retailValue || 0), 0);
+    const endingDiscountedValue = Object.values(tempBuckets).flat()
+      .reduce((sum, item) => sum + (item.discountedValue || 0), 0);
+    const endingCost = Object.values(tempBuckets).flat()
+      .reduce((sum, item) => sum + (item.costValue || 0), 0);
+
+    // Update inventory buckets for next week
+    inventoryBuckets = tempBuckets;
 
     // Check if inventory is below threshold
     const minimumBuffer = weeklySalesAmount * 6;
@@ -598,16 +627,17 @@ function calculateDiscountedValue(retailValue, ageInDays, discountSettings) {
     '90+': 15
   };
   
-  let discountPercent = 0;
+  // Find the maximum discount percentage that applies to this age or any younger age
+  let discountPercent = settings['0-30'];
   
+  if (ageInDays >= 30) {
+    discountPercent = Math.max(discountPercent, settings['31-60']);
+  }
+  if (ageInDays >= 60) {
+    discountPercent = Math.max(discountPercent, settings['61-90']);
+  }
   if (ageInDays >= 90) {
-    discountPercent = settings['90+'];
-  } else if (ageInDays >= 60) {
-    discountPercent = settings['61-90'];
-  } else if (ageInDays >= 30) {
-    discountPercent = settings['31-60'];
-  } else {
-    discountPercent = settings['0-30'];
+    discountPercent = Math.max(discountPercent, settings['90+']);
   }
   
   return retailValue * (1 - discountPercent / 100);
@@ -622,123 +652,61 @@ async function getInventoryAgeDistribution() {
   const ninetyDaysAgo = new Date(now);
   ninetyDaysAgo.setDate(now.getDate() - 90);
 
-  const ageDistribution = await Inventory.aggregate([
-    {
-      $match: {
-        currentStock: { $gt: 0 }  // Only include items with stock
-      }
-    },
-    {
-      $facet: {
-        '0-30': [
-          { $match: { lastReceivedDate: { $gte: thirtyDaysAgo } } },
-          {
-            $group: {
-              _id: null,
-              count: { $sum: 1 },
-              retailValue: { $sum: { $multiply: ['$currentStock', '$retailPrice'] } },
-              discountedValue: { 
-                $sum: { 
-                  $multiply: ['$currentStock', '$retailPrice', '$discountFactor', '$shrinkageFactor'] 
-                } 
-              }
-            }
-          }
-        ],
-        '31-60': [
-          { 
-            $match: { 
-              lastReceivedDate: { 
-                $lt: thirtyDaysAgo, 
-                $gte: sixtyDaysAgo 
-              } 
-            } 
-          },
-          {
-            $group: {
-              _id: null,
-              count: { $sum: 1 },
-              retailValue: { $sum: { $multiply: ['$currentStock', '$retailPrice'] } },
-              discountedValue: { 
-                $sum: { 
-                  $multiply: ['$currentStock', '$retailPrice', '$discountFactor', '$shrinkageFactor'] 
-                } 
-              }
-            }
-          }
-        ],
-        '61-90': [
-          { 
-            $match: { 
-              lastReceivedDate: { 
-                $lt: sixtyDaysAgo, 
-                $gte: ninetyDaysAgo 
-              } 
-            } 
-          },
-          {
-            $group: {
-              _id: null,
-              count: { $sum: 1 },
-              retailValue: { $sum: { $multiply: ['$currentStock', '$retailPrice'] } },
-              discountedValue: { 
-                $sum: { 
-                  $multiply: ['$currentStock', '$retailPrice', '$discountFactor', '$shrinkageFactor'] 
-                } 
-              }
-            }
-          }
-        ],
-        '90+': [
-          { 
-            $match: { 
-              lastReceivedDate: { $lt: ninetyDaysAgo } 
-            } 
-          },
-          {
-            $group: {
-              _id: null,
-              count: { $sum: 1 },
-              retailValue: { $sum: { $multiply: ['$currentStock', '$retailPrice'] } },
-              discountedValue: { 
-                $sum: { 
-                  $multiply: ['$currentStock', '$retailPrice', '$discountFactor', '$shrinkageFactor'] 
-                } 
-              }
-            }
-          }
-        ],
-        total: [
-          {
-            $group: {
-              _id: null,
-              count: { $sum: 1 },
-              retailValue: { $sum: { $multiply: ['$currentStock', '$retailPrice'] } },
-              discountedValue: { 
-                $sum: { 
-                  $multiply: ['$currentStock', '$retailPrice', '$discountFactor', '$shrinkageFactor'] 
-                } 
-              }
-            }
-          }
-        ]
-      }
-    }
-  ]);
+  // Get current forecast to use its discount settings
+  const currentForecast = await InventoryForecast.findOne();
+  const discountSettings = currentForecast?.configuration?.discountSettings || {
+    '0-30': 0,
+    '31-60': 5,
+    '61-90': 10,
+    '90+': 15
+  };
 
-  // Format the results
-  const distribution = ageDistribution[0];
-  const total = distribution.total[0] || { count: 0, retailValue: 0, discountedValue: 0 };
+  // Get all inventory items with stock
+  const inventoryItems = await Inventory.find({ currentStock: { $gt: 0 } });
 
-  // Convert to array format expected by frontend
-  return ['0-30', '31-60', '61-90', '90+'].map(range => {
-    const bucket = distribution[range][0] || { count: 0, retailValue: 0, discountedValue: 0 };
+  // Group items by age bucket and calculate values
+  const buckets = {
+    '0-30': [],
+    '31-60': [],
+    '61-90': [],
+    '90+': []
+  };
+
+  // Distribute items into buckets
+  inventoryItems.forEach(item => {
+    const age = Math.floor((now - new Date(item.lastReceivedDate)) / (1000 * 60 * 60 * 24));
+    const bucket = age <= 30 ? '0-30' : 
+                  age <= 60 ? '31-60' : 
+                  age <= 90 ? '61-90' : 
+                  '90+';
+    buckets[bucket].push({
+      ...item.toObject(),
+      age,
+      retailValue: item.currentStock * item.retailPrice
+    });
+  });
+
+  // Calculate totals for each bucket
+  const distribution = Object.entries(buckets).map(([range, items]) => {
+    const retailValue = items.reduce((sum, item) => sum + item.retailValue, 0);
+    const discountedValue = items.reduce((sum, item) => {
+      return sum + calculateDiscountedValue(item.retailValue, item.age, discountSettings);
+    }, 0);
+
     return {
       range,
-      count: bucket.count,
-      retailValue: bucket.retailValue,
-      discountedValue: bucket.discountedValue,
-      percentage: total.count > 0 ? (bucket.count / total.count) * 100 : 0
+      count: items.length,
+      retailValue,
+      discountedValue
     };
   });
+
+  // Calculate total count for percentages
+  const totalCount = distribution.reduce((sum, bucket) => sum + bucket.count, 0);
+
+  // Add percentages to each bucket
+  return distribution.map(bucket => ({
+    ...bucket,
+    percentage: totalCount > 0 ? (bucket.count / totalCount) * 100 : 0
+  }));
 } 

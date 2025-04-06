@@ -131,6 +131,30 @@ The Inventory Forecast project aims to optimize inventory purchasing timing by a
    - Inventory data structure supports accurate value tracking
    - Discount factors need to be applied consistently
 
+4. Inventory Value Calculation Principles
+   - Discounted values must never increase over time without restocking
+   - Discounts should only increase (or stay the same) as inventory ages
+   - Sales reductions must be applied before aging and discounting
+   - The sequence of operations is critical:
+     1. Apply sales reductions to current retail values
+     2. Age inventory items
+     3. Calculate new discounted values based on reduced retail values
+   - When items cross age thresholds, they maintain their highest historical discount
+   - Sales distribution percentages determine how much to sell from each age bucket
+   - Excess sales from depleted buckets are redistributed to buckets with remaining capacity
+
+5. Key Inventory Value Rules
+   - Rule 1: Monotonic Discount Progression
+     - Items must maintain their highest historical discount percentage
+     - Example: If an item has a 25% discount at 31-60 days, it cannot drop to 0% at 61-90 days
+   - Rule 2: Value Reduction Sequence
+     - Sales reductions are applied to retail values first
+     - Aging and discounting are applied to the reduced retail values
+   - Rule 3: Sales Distribution
+     - Sales are distributed according to configured percentages
+     - If a bucket cannot fulfill its sales quota, excess is redistributed
+     - Redistribution is proportional to remaining capacity in other buckets
+
 ## Future Considerations
 1. Enhanced Features
    - Holiday and event calendar integration
