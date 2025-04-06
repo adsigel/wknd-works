@@ -1,0 +1,93 @@
+.inventory-settings {
+  padding: 24px;
+}
+
+.inventory-settings .tabs {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid #e8e8e8;
+  padding-bottom: 8px;
+}
+
+.inventory-settings .tab {
+  background: none;
+  border: none;
+  padding: 8px 16px;
+  font-size: 14px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.inventory-settings .tab:hover {
+  color: #2c3d2f;
+}
+
+.inventory-settings .tab.active {
+  color: #2c3d2f;
+  font-weight: 600;
+  border-bottom: 2px solid #2c3d2f;
+  margin-bottom: -9px;
+}
+
+.inventory-settings .tab-content {
+  padding: 16px 0;
+}
+
+/* Discounting Tab */
+.discounting-tab h3,
+.restocking-tab h3 {
+  margin: 0 0 16px 0;
+  color: #2c3d2f;
+  font-size: 16px;
+}
+
+.discount-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.discount-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+}
+
+.age-range {
+  font-weight: 500;
+  color: #2c3d2f;
+}
+
+.discount-value {
+  color: #666;
+}
+
+/* Restocking Tab */
+.restock-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.restock-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background-color: #f9f9f9;
+  border-radius: 4px;
+}
+
+.restock-label {
+  font-weight: 500;
+  color: #2c3d2f;
+}
+
+.restock-value {
+  color: #666;
+} 

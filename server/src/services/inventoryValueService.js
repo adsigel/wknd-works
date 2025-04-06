@@ -7,6 +7,7 @@ import {
   logDebug 
 } from '../utils/loggingUtils.js';
 import { formatCurrency, formatPercentage } from '../utils/formatters.js';
+import Settings from '../models/Settings.js';
 
 class InventoryValueService {
   constructor() {
@@ -101,10 +102,15 @@ class InventoryValueService {
     const productDate = new Date(variant.created_at);
     const daysInInventory = Math.floor((new Date() - productDate) / (1000 * 60 * 60 * 24));
     
+    // Use hard-coded discount values
     let discount = 0;
-    if (daysInInventory >= 90) discount = 0.4;
-    else if (daysInInventory >= 60) discount = 0.25;
-    else if (daysInInventory >= 30) discount = 0.15;
+    if (daysInInventory >= 90) {
+      discount = 0.15; // 15% discount for items over 90 days
+    } else if (daysInInventory >= 60) {
+      discount = 0.10; // 10% discount for items 60-90 days
+    } else if (daysInInventory >= 30) {
+      discount = 0.05; // 5% discount for items 30-60 days
+    }
     
     const discountedValue = variantRetailValue * (1 - discount);
 

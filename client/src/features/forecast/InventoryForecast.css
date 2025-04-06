@@ -15,6 +15,12 @@
   font-size: 24px;
 }
 
+.header-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.settings-button,
 .refresh-button {
   padding: 8px 16px;
   background-color: #2c3d2f;
@@ -26,8 +32,14 @@
   transition: background-color 0.2s;
 }
 
+.settings-button:hover,
 .refresh-button:hover {
   background-color: #1a231d;
+}
+
+.refresh-button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
 }
 
 .forecast-chart {

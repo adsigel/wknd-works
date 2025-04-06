@@ -133,11 +133,18 @@ inventoryForecastSchema.methods.needsRefresh = function() {
 };
 
 // Method to calculate discounted value based on age
-inventoryForecastSchema.methods.calculateDiscountedValue = function(value, ageInDays) {
-  if (ageInDays <= 30) return value;
-  if (ageInDays <= 60) return value * 0.85; // 15% discount
-  if (ageInDays <= 90) return value * 0.75; // 25% discount
-  return value * 0.60; // 40% discount
+inventoryForecastSchema.methods.calculateDiscountedValue = async function(value, ageInDays) {
+  // Use dynamic discount calculation
+  let discount = 0;
+  if (ageInDays >= 90) {
+    discount = 0.15; // 15% discount for items over 90 days
+  } else if (ageInDays >= 60) {
+    discount = 0.10; // 10% discount for items 60-90 days
+  } else if (ageInDays >= 30) {
+    discount = 0.05; // 5% discount for items 30-60 days
+  }
+  
+  return value * (1 - discount);
 };
 
 const InventoryForecast = mongoose.model('InventoryForecast', inventoryForecastSchema);

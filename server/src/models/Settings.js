@@ -57,16 +57,6 @@ const settingsSchema = new mongoose.Schema({
       'Saturday': 5,
       'Sunday': 25
     }
-  },
-  inventorySettings: {
-    type: Object,
-    default: {
-      discountRanges: {
-        range1: { days: 30, discount: 0.15 },
-        range2: { days: 60, discount: 0.25 },
-        range3: { days: 90, discount: 0.40 }
-      }
-    }
   }
 }, {
   timestamps: true

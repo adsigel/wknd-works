@@ -27,10 +27,6 @@ router.post('/', async (req, res) => {
     }
     
     // Update settings
-    if (req.body.inventorySettings) {
-      settings.inventorySettings = req.body.inventorySettings;
-      console.log('Updated inventory settings:', JSON.stringify(settings.inventorySettings, null, 2));
-    }
     if (req.body.chartSettings) {
       settings.chartSettings = req.body.chartSettings;
       console.log('Updated chart settings:', JSON.stringify(settings.chartSettings, null, 2));

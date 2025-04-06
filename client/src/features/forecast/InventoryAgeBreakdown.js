@@ -92,12 +92,16 @@ const InventoryAgeBreakdown = ({ inventoryData }) => {
         callbacks: {
           label: (context) => {
             const bucket = ageDistribution[context.datasetIndex];
+            const discount = bucket.label.includes('0-30') ? '0%' :
+                           bucket.label.includes('31-60') ? '5%' :
+                           bucket.label.includes('61-90') ? '10%' :
+                           '15%';
             return [
-              `${bucket.label}`,
-              `Items: ${bucket.count}`,
+              bucket.label,
+              `${discount} Discount`,
+              `${bucket.count} of ${totalItems} Items`,
               `Retail Value: ${formatCurrency(bucket.retailValue)}`,
-              `Discounted Value: ${formatCurrency(bucket.discountedValue)}`,
-              `${bucket.percentage}% of inventory`
+              `Discounted Value: ${formatCurrency(bucket.discountedValue)}`
             ];
           }
         }

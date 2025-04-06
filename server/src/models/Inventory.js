@@ -74,8 +74,7 @@ const inventorySchema = new mongoose.Schema({
   lastReceivedDate: {
     type: Date,
     required: true,
-    default: Date.now,
-    index: true  // Add index for efficient querying
+    default: Date.now
   },
   historicalMovement: [{
     date: Date,

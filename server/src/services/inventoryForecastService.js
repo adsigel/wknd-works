@@ -483,9 +483,13 @@ function calculateDiscountedValue(retailValue, projectionDate) {
   
   // Apply progressive discount based on time in future
   let discountFactor = 1.0;
-  if (daysInFuture > 60) discountFactor = 0.6;  // 40% discount
-  else if (daysInFuture > 30) discountFactor = 0.75;  // 25% discount
-  else if (daysInFuture > 0) discountFactor = 0.85;  // 15% discount
+  if (daysInFuture > 90) {
+    discountFactor = 0.85; // 15% discount
+  } else if (daysInFuture > 60) {
+    discountFactor = 0.90; // 10% discount
+  } else if (daysInFuture > 30) {
+    discountFactor = 0.95; // 5% discount
+  }
   
   return retailValue * discountFactor;
 }

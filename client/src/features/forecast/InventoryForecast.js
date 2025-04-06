@@ -5,6 +5,7 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 import { format } from 'date-fns';
 import { formatCurrency } from '../../utils/formatters';
 import InventoryAgeBreakdown from './InventoryAgeBreakdown';
+import InventorySettings from './InventorySettings';
 import './InventoryForecast.css';
 
 ChartJS.register(
@@ -24,6 +25,7 @@ const InventoryForecast = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [loadingStep, setLoadingStep] = useState('initializing');
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
   useEffect(() => {
     console.log('Component mounted, API URL:', API_BASE_URL);
@@ -199,13 +201,21 @@ const InventoryForecast = () => {
     <div className="inventory-forecast">
       <div className="forecast-header">
         <h2>Inventory Forecast</h2>
-        <button 
-          className="refresh-button"
-          onClick={fetchForecast}
-          disabled={loading}
-        >
-          {loading ? 'Refreshing...' : 'Refresh'}
-        </button>
+        <div className="header-buttons">
+          <button 
+            className="settings-button"
+            onClick={() => setIsSettingsOpen(true)}
+          >
+            Settings
+          </button>
+          <button 
+            className="refresh-button"
+            onClick={fetchForecast}
+            disabled={loading}
+          >
+            {loading ? 'Refreshing...' : 'Refresh'}
+          </button>
+        </div>
       </div>
 
       {loading && (
@@ -280,6 +290,11 @@ const InventoryForecast = () => {
           </div>
         </>
       )}
+
+      <InventorySettings
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+      />
     </div>
   );
 };
