@@ -91,6 +91,12 @@ const InventoryForecast = () => {
     }
   };
 
+  const handleSettingsClose = () => {
+    setIsSettingsOpen(false);
+    // Refresh the forecast data to reflect any changes
+    fetchForecast();
+  };
+
   if (loading) {
     return (
       <div className="loading-container">
@@ -293,7 +299,7 @@ const InventoryForecast = () => {
 
       <InventorySettings
         isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
+        onClose={handleSettingsClose}
       />
     </div>
   );

@@ -187,24 +187,45 @@ function calculateAggregateValues(inventoryItems) {
  * @param {number} forecastPeriodWeeks - Number of weeks to forecast
  * @param {Array<number>} weeklySales - Array of weekly sales projections
  * @param {Object} aggregateValues - Current aggregate inventory values
+ * @param {Object} discountSettings - The discount settings to use
+ * @param {Object} salesDistribution - The sales distribution to use
  * @returns {Array<Object>} Array of weekly projections
  */
-function generateWeeklyProjections(
+async function generateWeeklyProjections(
   startDate,
   forecastPeriodWeeks,
   weeklySales,
-  aggregateValues
+  aggregateValues,
+  discountSettings,
+  salesDistribution
 ) {
   const projections = [];
-  let currentRetailValue = aggregateValues.totalRetailValue;
-  let currentDiscountedValue = aggregateValues.totalDiscountedValue;
-  let currentCost = aggregateValues.totalInventoryCost;
 
-  // If we have no inventory data, return empty projections
-  if (!currentRetailValue || !currentDiscountedValue || !currentCost) {
-    logInfo('No inventory data available for projections');
-    return [];
-  }
+  // Get inventory items and their ages
+  const inventoryItems = await Inventory.find({ currentStock: { $gt: 0 } });
+  
+  // Initialize inventory buckets
+  let inventoryBuckets = {
+    '0-30': [],
+    '31-60': [],
+    '61-90': [],
+    '90+': []
+  };
+
+  // Distribute initial inventory into buckets
+  inventoryItems.forEach(item => {
+    const age = Math.floor((new Date() - new Date(item.lastReceivedDate)) / (1000 * 60 * 60 * 24));
+    const bucket = age <= 30 ? '0-30' : 
+                  age <= 60 ? '31-60' : 
+                  age <= 90 ? '61-90' : 
+                  '90+';
+    inventoryBuckets[bucket].push({
+      ...item.toObject(),
+      age,
+      retailValue: item.currentStock * item.retailPrice,
+      costValue: item.currentStock * item.costPrice
+    });
+  });
 
   for (let i = 0; i < forecastPeriodWeeks; i++) {
     const weekStart = new Date(startDate);
@@ -213,36 +234,90 @@ function generateWeeklyProjections(
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 6);
 
-    // Calculate weekly sales (default to 0 if not provided)
+    // Calculate weekly sales amount
     const weeklySalesAmount = weeklySales[i] || 0;
 
-    // Calculate ending retail value
-    const endingRetailValue = Math.max(0, currentRetailValue - weeklySalesAmount);
-    
-    // Calculate ending discounted value using the progressive discount
-    const endingDiscountedValue = calculateDiscountedValue(endingRetailValue, weekStart);
+    // Calculate total retail value in each bucket
+    const bucketTotals = {};
+    let totalRetailValue = 0;
+    Object.entries(inventoryBuckets).forEach(([bucket, items]) => {
+      bucketTotals[bucket] = items.reduce((sum, item) => sum + item.retailValue, 0);
+      totalRetailValue += bucketTotals[bucket];
+    });
 
-    // Calculate ending cost proportionally
-    const endingCost = Math.max(0, currentCost * (endingRetailValue / currentRetailValue));
+    // Calculate sales distribution
+    const salesByBucket = {};
+    if (totalRetailValue > 0) {
+      Object.keys(inventoryBuckets).forEach(bucket => {
+        // Use configured distribution or calculate proportional
+        if (salesDistribution[bucket]) {
+          salesByBucket[bucket] = weeklySalesAmount * (salesDistribution[bucket] / 100);
+        } else {
+          // Fallback to proportional if no configuration
+          salesByBucket[bucket] = weeklySalesAmount * (bucketTotals[bucket] / totalRetailValue);
+        }
+      });
+    }
 
-    // Check if inventory is below threshold using discounted value
-    const minimumBuffer = weeklySalesAmount * 6; // 6 weeks buffer
+    // Apply sales to each bucket
+    Object.entries(inventoryBuckets).forEach(([bucket, items]) => {
+      const bucketSales = salesByBucket[bucket] || 0;
+      if (bucketSales > 0 && items.length > 0) {
+        const reductionFactor = Math.max(0, 1 - (bucketSales / bucketTotals[bucket]));
+        items.forEach(item => {
+          item.retailValue *= reductionFactor;
+          item.costValue *= reductionFactor;
+        });
+      }
+    });
+
+    // Calculate total values after sales
+    const endingRetailValue = Object.values(inventoryBuckets).reduce((sum, items) => {
+      return sum + items.reduce((bucketSum, item) => bucketSum + item.retailValue, 0);
+    }, 0);
+    const endingDiscountedValue = Object.entries(inventoryBuckets).reduce((sum, [bucket, items]) => {
+      return sum + items.reduce((bucketSum, item) => {
+        return bucketSum + calculateDiscountedValue(item.retailValue, item.age, discountSettings);
+      }, 0);
+    }, 0);
+    const endingCost = Object.values(inventoryBuckets).reduce((sum, items) => {
+      return sum + items.reduce((bucketSum, item) => bucketSum + item.costValue, 0);
+    }, 0);
+
+    // Age inventory by one week
+    const newBuckets = {
+      '0-30': [],
+      '31-60': [],
+      '61-90': [],
+      '90+': []
+    };
+
+    Object.values(inventoryBuckets).flat().forEach(item => {
+      const newAge = item.age + 7;
+      const newBucket = newAge <= 30 ? '0-30' : 
+                       newAge <= 60 ? '31-60' : 
+                       newAge <= 90 ? '61-90' : 
+                       '90+';
+      newBuckets[newBucket].push({
+        ...item,
+        age: newAge
+      });
+    });
+    inventoryBuckets = newBuckets;
+
+    // Check if inventory is below threshold
+    const minimumBuffer = weeklySalesAmount * 6;
     const isBelowThreshold = endingDiscountedValue < minimumBuffer;
 
-    // Update current values for next week
-    currentRetailValue = endingRetailValue;
-    currentDiscountedValue = endingDiscountedValue;
-    currentCost = endingCost;
-
     projections.push({
-      weekStart: weekStart,
-      weekEnd: weekEnd,
+      weekStart,
+      weekEnd,
       projectedSales: weeklySalesAmount,
       endingRetailValue,
       endingDiscountedValue,
       endingCost,
       isBelowThreshold,
-      minimumBuffer // Add this for debugging
+      minimumBuffer
     });
   }
 
@@ -293,13 +368,22 @@ export async function updateInventoryForecast(startDate, forecastPeriodWeeks = 1
         throw new Error('No valid inventory items found with stock and prices');
       }
 
+      // Get current forecast to use its discount settings
+      const currentForecast = await InventoryForecast.findOne();
+
       // Calculate aggregate values
       const aggregateValues = {
         totalInventoryCost: validInventoryItems.reduce((sum, item) => sum + (item.currentStock * item.costPrice), 0),
         totalRetailValue: validInventoryItems.reduce((sum, item) => sum + (item.currentStock * item.retailPrice), 0),
         totalDiscountedValue: validInventoryItems.reduce((sum, item) => {
           const retailValue = item.currentStock * item.retailPrice;
-          return sum + calculateDiscountedValue(retailValue, new Date());
+          const ageInDays = Math.floor((new Date() - new Date(item.lastReceivedDate)) / (1000 * 60 * 60 * 24));
+          return sum + calculateDiscountedValue(retailValue, ageInDays, currentForecast?.configuration?.discountSettings || {
+            '0-30': 0,
+            '31-60': 5,
+            '61-90': 10,
+            '90+': 15
+          });
         }, 0)
       };
 
@@ -312,11 +396,23 @@ export async function updateInventoryForecast(startDate, forecastPeriodWeeks = 1
       logDebug('Weekly sales goals:', weeklySales);
 
       // Generate projections
-      const weeklyProjections = generateWeeklyProjections(
+      const weeklyProjections = await generateWeeklyProjections(
         startDate,
         forecastPeriodWeeks,
         weeklySales,
-        aggregateValues
+        aggregateValues,
+        currentForecast?.configuration?.discountSettings || {
+          '0-30': 0,
+          '31-60': 5,
+          '61-90': 10,
+          '90+': 15
+        },
+        currentForecast?.configuration?.salesDistribution || {
+          '0-30': 25,
+          '31-60': 25,
+          '61-90': 25,
+          '90+': 25
+        }
       );
 
       // Process inventory items for age breakdown
@@ -370,9 +466,21 @@ export async function updateInventoryForecast(startDate, forecastPeriodWeeks = 1
         configuration: {
           forecastPeriodWeeks,
           minimumWeeksBuffer: 6,
-          leadTimeWeeks: 2
+          leadTimeWeeks: 2,
+          discountSettings: currentForecast?.configuration?.discountSettings || {
+            '0-30': 0,
+            '31-60': 5,
+            '61-90': 10,
+            '90+': 15
+          },
+          salesDistribution: currentForecast?.configuration?.salesDistribution || {
+            '0-30': 25,
+            '31-60': 25,
+            '61-90': 25,
+            '90+': 25
+          }
         },
-        weeklyProjections, // Use projections as is, don't recalculate discounted values
+        weeklyProjections,
         inventoryData
       };
 
@@ -475,23 +583,34 @@ export async function updateForecastConfig(config) {
 }
 
 /**
- * Calculate discounted value based on projected date
+ * Calculate discounted value based on age
+ * @param {number} retailValue - The retail value to discount
+ * @param {number} ageInDays - The age of the item in days
+ * @param {Object} discountSettings - The discount settings to use
+ * @returns {number} - The discounted value
  */
-function calculateDiscountedValue(retailValue, projectionDate) {
-  const now = new Date();
-  const daysInFuture = Math.floor((new Date(projectionDate) - now) / (1000 * 60 * 60 * 24));
+function calculateDiscountedValue(retailValue, ageInDays, discountSettings) {
+  // Use provided discount settings or defaults
+  const settings = discountSettings || {
+    '0-30': 0,
+    '31-60': 5,
+    '61-90': 10,
+    '90+': 15
+  };
   
-  // Apply progressive discount based on time in future
-  let discountFactor = 1.0;
-  if (daysInFuture > 90) {
-    discountFactor = 0.85; // 15% discount
-  } else if (daysInFuture > 60) {
-    discountFactor = 0.90; // 10% discount
-  } else if (daysInFuture > 30) {
-    discountFactor = 0.95; // 5% discount
+  let discountPercent = 0;
+  
+  if (ageInDays >= 90) {
+    discountPercent = settings['90+'];
+  } else if (ageInDays >= 60) {
+    discountPercent = settings['61-90'];
+  } else if (ageInDays >= 30) {
+    discountPercent = settings['31-60'];
+  } else {
+    discountPercent = settings['0-30'];
   }
   
-  return retailValue * discountFactor;
+  return retailValue * (1 - discountPercent / 100);
 }
 
 async function getInventoryAgeDistribution() {

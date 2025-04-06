@@ -43,6 +43,26 @@ const inventoryForecastSchema = new mongoose.Schema({
       required: true,
       default: 2,
       min: 1
+    },
+    discountSettings: {
+      type: Object,
+      required: true,
+      default: {
+        '0-30': 0,
+        '31-60': 5,
+        '61-90': 10,
+        '90+': 15
+      }
+    },
+    salesDistribution: {
+      type: Object,
+      required: true,
+      default: {
+        '0-30': 25,
+        '31-60': 25,
+        '61-90': 25,
+        '90+': 25
+      }
     }
   },
   
