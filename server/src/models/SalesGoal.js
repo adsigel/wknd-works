@@ -3,8 +3,7 @@ import mongoose from 'mongoose';
 const salesGoalSchema = new mongoose.Schema({
   date: {
     type: Date,
-    required: true,
-    index: true
+    required: true
   },
   goal: {
     type: Number,

@@ -183,6 +183,8 @@ const InventorySettings = ({ isOpen, onClose }) => {
       setHasUnsavedChanges(false);
       // Close the modal after successful save
       onClose();
+      // Force a refresh of the forecast
+      window.location.reload();
     } catch (error) {
       console.error('Error saving settings:', error);
       setError('Failed to save settings');

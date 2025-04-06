@@ -37,8 +37,16 @@ router.get('/', async (req, res) => {
 
 // Get all monthly goals
 router.get('/goals', async (req, res) => {
+  console.log('GET /api/sales/goals - Received request:', {
+    query: req.query,
+    url: req.url,
+    path: req.path
+  });
+  
   try {
     const year = parseInt(req.query.year) || new Date().getFullYear();
+    console.log('Fetching monthly goals for year:', year);
+    
     const goals = [];
     
     // Generate array of months for the year
@@ -52,6 +60,7 @@ router.get('/goals', async (req, res) => {
       });
     }
     
+    console.log('Returning goals:', goals);
     res.json(goals);
   } catch (error) {
     console.error('Error fetching monthly goals:', error);

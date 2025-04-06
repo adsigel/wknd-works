@@ -46,29 +46,38 @@
 
 .inventory-age-breakdown .summary-stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid #eee;
+  margin-top: 1.5rem;
+  padding: 0 1rem;
 }
 
-.inventory-age-breakdown .stat {
+.stat-tile {
+  background: #fff;
+  border-radius: 8px;
+  padding: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.stat-label {
+  color: #666;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
+  justify-content: center;
   gap: 0.25rem;
 }
 
-.inventory-age-breakdown .stat .label {
-  font-size: 0.75rem;
-  color: #666;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+.info-icon {
+  color: #999;
+  cursor: help;
+  font-size: 0.9rem;
 }
 
-.inventory-age-breakdown .stat .value {
-  font-size: 0.9rem;
+.stat-value {
+  font-size: 1.5rem;
   font-weight: 600;
   color: #333;
 }

@@ -8,6 +8,18 @@ import InventoryAgeBreakdown from './InventoryAgeBreakdown';
 import InventorySettings from './InventorySettings';
 import './InventoryForecast.css';
 
+// Chart colors
+const chartColors = {
+  discountedValue: {
+    border: '#1976d2',  // blue
+    background: '#42a5f5'
+  },
+  minimumBuffer: {
+    border: '#ed6c02',  // orange
+    background: '#ff9800'
+  }
+};
+
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -20,7 +32,7 @@ ChartJS.register(
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
-const InventoryForecast = () => {
+const InventoryForecast = ({ shouldRefresh, onRefreshComplete }) => {
   const [forecast, setForecast] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -31,6 +43,14 @@ const InventoryForecast = () => {
     console.log('Component mounted, API URL:', API_BASE_URL);
     fetchForecast();
   }, []);
+
+  useEffect(() => {
+    if (shouldRefresh) {
+      console.log('Refreshing forecast due to monthly goals update');
+      fetchForecast();
+      onRefreshComplete();
+    }
+  }, [shouldRefresh, onRefreshComplete]);
 
   const fetchForecast = async () => {
     try {
@@ -94,10 +114,7 @@ const InventoryForecast = () => {
 
   const handleSettingsClose = () => {
     setIsSettingsOpen(false);
-    // Only fetch fresh data if we're not already loading
-    if (!loading) {
-      fetchForecast();
-    }
+    // Remove the fetchForecast call since shouldRefresh will handle the refresh
   };
 
   if (loading) {
@@ -146,35 +163,24 @@ const InventoryForecast = () => {
   }
 
   const chartData = {
-    labels: forecast.weeklyProjections.map(proj => 
-      format(new Date(proj.weekStart), 'MMM d')
-    ),
+    labels: forecast.weeklyProjections.map(week => format(new Date(week.weekStart), 'MMM d')),
     datasets: [
       {
-        label: 'Retail Value',
-        data: forecast.weeklyProjections.map(proj => proj.endingRetailValue),
-        borderColor: 'rgba(44, 61, 47, 1)',
-        backgroundColor: 'rgba(44, 61, 47, 0.1)',
-        fill: true,
-        tension: 0.4
-      },
-      {
         label: 'Discounted Value',
-        data: forecast.weeklyProjections.map(proj => proj.endingDiscountedValue),
-        borderColor: 'rgba(210, 129, 95, 1)',
-        backgroundColor: 'rgba(210, 129, 95, 0.1)',
-        fill: true,
+        data: forecast.weeklyProjections.map(week => week.endingDiscountedValue),
+        borderColor: chartColors.discountedValue.border,
+        backgroundColor: chartColors.discountedValue.background,
+        fill: false,
         tension: 0.4
       },
       {
         label: 'Minimum Buffer',
-        data: forecast.weeklyProjections.map(proj => 
-          proj.projectedSales * forecast.configuration.minimumWeeksBuffer
-        ),
-        borderColor: 'rgba(143, 171, 158, 0.5)',
+        data: forecast.weeklyProjections.map(week => week.projectedSales * forecast.configuration.minimumWeeksBuffer),
+        borderColor: chartColors.minimumBuffer.border,
+        backgroundColor: chartColors.minimumBuffer.background,
         borderDash: [5, 5],
         fill: false,
-        pointRadius: 0
+        tension: 0.4
       }
     ]
   };
@@ -182,6 +188,10 @@ const InventoryForecast = () => {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
+    interaction: {
+      mode: 'index',
+      intersect: false,
+    },
     plugins: {
       legend: {
         position: 'top',
@@ -189,17 +199,24 @@ const InventoryForecast = () => {
       tooltip: {
         callbacks: {
           label: function(context) {
-            return `${context.dataset.label}: ${formatCurrency(context.raw)}`;
+            const label = context.dataset.label || '';
+            return `${label}: $${formatCurrency(context.parsed.y)}`;
           }
         }
       }
     },
     scales: {
       y: {
-        beginAtZero: true,
+        type: 'linear',
+        display: true,
+        position: 'left',
+        title: {
+          display: true,
+          text: 'Inventory Value ($)'
+        },
         ticks: {
           callback: function(value) {
-            return formatCurrency(value);
+            return '$' + formatCurrency(value);
           }
         }
       }

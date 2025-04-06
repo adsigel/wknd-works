@@ -2,7 +2,7 @@ import React from 'react';
 import { Bar } from 'react-chartjs-2';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { Chart as ChartJS } from 'chart.js';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCurrency, formatNumber } from '../../utils/formatters';
 import './InventoryAgeBreakdown.css';
 
 const InventoryAgeBreakdown = ({ inventoryData }) => {
@@ -144,6 +144,10 @@ const InventoryAgeBreakdown = ({ inventoryData }) => {
   const totalRetailValue = inventoryData.reduce((sum, bucket) => sum + bucket.retailValue, 0);
   const totalDiscountedValue = inventoryData.reduce((sum, bucket) => sum + bucket.discountedValue, 0);
 
+  const grossMarginTooltip = "Calculated as (Discounted Value - Cost) / Discounted Value, assuming cost is 50% of retail value. This shows your expected margin after applying age-based discounts.";
+  
+  const weightedDiscountTooltip = "Calculated by comparing total discounted value to total retail value, automatically weighting each age bucket's discount by its share of total inventory value. For example, if 50% of inventory value is in 90+ days (15% discount) and 50% is in 0-30 days (0% discount), the weighted average would be 7.5%.";
+
   return (
     <div className="inventory-age-breakdown">
       <div className="section-header">
@@ -153,21 +157,33 @@ const InventoryAgeBreakdown = ({ inventoryData }) => {
         <Bar 
           data={chartData} 
           options={chartOptions} 
-          plugins={[ChartDataLabels]}  // Apply plugin only to this chart
+          plugins={[ChartDataLabels]}
         />
       </div>
       <div className="summary-stats">
-        <div className="stat">
-          <span className="label">Total Items</span>
-          <span className="value">{totalItems}</span>
+        <div className="stat-tile">
+          <div className="stat-label">Total Retail Value</div>
+          <div className="stat-value">${formatNumber(Math.round(totalRetailValue * 100) / 100)}</div>
         </div>
-        <div className="stat">
-          <span className="label">Total Retail Value</span>
-          <span className="value">{formatCurrency(totalRetailValue)}</span>
+        <div className="stat-tile">
+          <div className="stat-label">Total Discounted Value</div>
+          <div className="stat-value">${formatNumber(Math.round(totalDiscountedValue * 100) / 100)}</div>
         </div>
-        <div className="stat">
-          <span className="label">Total Discounted Value</span>
-          <span className="value">{formatCurrency(totalDiscountedValue)}</span>
+        <div className="stat-tile">
+          <div className="stat-label">
+            Weighted Average Discount
+            <span className="info-icon" title={weightedDiscountTooltip}>ⓘ</span>
+          </div>
+          <div className="stat-value">{((1 - totalDiscountedValue / totalRetailValue) * 100).toFixed(1)}%</div>
+        </div>
+        <div className="stat-tile">
+          <div className="stat-label">
+            Gross Margin with Discounts
+            <span className="info-icon" title={grossMarginTooltip}>ⓘ</span>
+          </div>
+          <div className="stat-value">
+            {((totalDiscountedValue - (totalRetailValue * 0.5)) / totalDiscountedValue * 100).toFixed(1)}%
+          </div>
         </div>
       </div>
     </div>

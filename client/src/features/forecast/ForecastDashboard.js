@@ -5,6 +5,12 @@ import './ForecastDashboard.css';
 
 const ForecastDashboard = () => {
   const [activeTab, setActiveTab] = useState('sales');
+  const [monthlyGoalsUpdated, setMonthlyGoalsUpdated] = useState(false);
+
+  const handleMonthlyGoalsUpdate = () => {
+    // Trigger a refresh of the inventory forecast when monthly goals are updated
+    setMonthlyGoalsUpdated(true);
+  };
 
   return (
     <div className="forecast-dashboard">
@@ -17,7 +23,11 @@ const ForecastDashboard = () => {
         </button>
         <button
           className={`tab ${activeTab === 'inventory' ? 'active' : ''}`}
-          onClick={() => setActiveTab('inventory')}
+          onClick={() => {
+            setActiveTab('inventory');
+            // Reset the flag when switching to inventory tab
+            setMonthlyGoalsUpdated(false);
+          }}
         >
           Inventory Forecast
         </button>
@@ -26,12 +36,12 @@ const ForecastDashboard = () => {
       <div className="tab-content">
         {activeTab === 'sales' && (
           <div className="sales-forecast">
-            <SalesChart />
+            <SalesChart onMonthlyGoalsUpdate={handleMonthlyGoalsUpdate} />
           </div>
         )}
         {activeTab === 'inventory' && (
           <div className="inventory-forecast">
-            <InventoryForecast />
+            <InventoryForecast shouldRefresh={monthlyGoalsUpdated} onRefreshComplete={() => setMonthlyGoalsUpdated(false)} />
           </div>
         )}
       </div>

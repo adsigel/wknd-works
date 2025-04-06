@@ -125,23 +125,33 @@ app.use(limiter);
 // Add request logging middleware
 app.use(requestLogger);
 
-// API Routes
-app.use('/api/sales', salesRoutes);
-app.use('/api/settings', settingsRoutes);
-app.use('/api/inventory', inventoryRoutes);
-app.use('/api/inventory-forecast', inventoryForecastRoutes);
-
 // Serve static files from React build directory
 const clientBuildPath = path.join(workspaceDir, 'client', 'build');
 console.log('Serving static files from:', clientBuildPath);
 app.use(express.static(clientBuildPath));
 
+// Add request logging for all routes
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
+
+// API Routes
+console.log('Registering API routes...');
+app.use('/api/sales', salesRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/inventory-forecast', inventoryForecastRoutes);
+console.log('API routes registered');
+
 // Handle client-side routing
 app.get('*', (req, res) => {
-  // Don't redirect API routes
-  if (!req.url.startsWith('/api')) {
-    res.sendFile(path.join(clientBuildPath, 'index.html'));
+  // Return 404 for unmatched API routes
+  if (req.url.startsWith('/api')) {
+    return res.status(404).json({ error: `Cannot ${req.method} ${req.url}` });
   }
+  // Handle client-side routing for non-API routes
+  res.sendFile(path.join(clientBuildPath, 'index.html'));
 });
 
 // Connect to MongoDB
