@@ -76,15 +76,21 @@ const productQuery = (locationId, cursor = null) => `{
 }`;
 
 // Function to calculate discount based on inventory age
-function calculateDiscount(createdAt) {
+async function calculateDiscount(createdAt) {
   const createdDate = new Date(createdAt);
   const today = new Date();
   const daysInInventory = Math.floor((today - createdDate) / (1000 * 60 * 60 * 24));
 
-  if (daysInInventory < 30) return 0;
-  if (daysInInventory < 60) return 0.15;
-  if (daysInInventory < 90) return 0.25;
-  return 0.40;
+  // Use hard-coded discount values
+  if (daysInInventory >= 90) {
+    return 0.15; // 15% discount for items over 90 days
+  } else if (daysInInventory >= 60) {
+    return 0.10; // 10% discount for items 60-90 days
+  } else if (daysInInventory >= 30) {
+    return 0.05; // 5% discount for items 30-60 days
+  }
+  
+  return 0;
 }
 
 async function testGraphQL() {
@@ -202,7 +208,7 @@ async function testGraphQL() {
           
           // Calculate discount based on inventory age
           const createdAt = variant.node.inventoryItem.createdAt;
-          const discount = calculateDiscount(createdAt);
+          const discount = await calculateDiscount(createdAt);
           const discountedPrice = retailPrice * (1 - discount);
           const variantDiscountedValue = availableQuantity * discountedPrice;
           

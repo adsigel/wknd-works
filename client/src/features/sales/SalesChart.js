@@ -21,18 +21,8 @@ ChartJS.register(
 );
 
 const months = [
-  { value: 1, label: "January" },
-  { value: 2, label: "February" },
-  { value: 3, label: "March" },
-  { value: 4, label: "April" },
-  { value: 5, label: "May" },
-  { value: 6, label: "June" },
-  { value: 7, label: "July" },
-  { value: 8, label: "August" },
-  { value: 9, label: "September" },
-  { value: 10, label: "October" },
-  { value: 11, label: "November" },
-  { value: 12, label: "December" }
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
 ];
 
 const defaultChartSettings = {
@@ -641,45 +631,56 @@ const SalesChart = ({ onMonthlyGoalsUpdate }) => {
     }
   };
 
+  const handlePreviousMonth = () => {
+    if (selectedMonth === 1) {
+      setSelectedMonth(12);
+      setSelectedYear(selectedYear - 1);
+    } else {
+      setSelectedMonth(selectedMonth - 1);
+    }
+  };
+
+  const handleNextMonth = () => {
+    if (selectedMonth === 12) {
+      setSelectedMonth(1);
+      setSelectedYear(selectedYear + 1);
+    } else {
+      setSelectedMonth(selectedMonth + 1);
+    }
+  };
+
   return (
     <div className="dashboard">
       <div className="dashboard-header">
-        <h2 className="dashboard-title" style={{ fontSize: '24px', marginBottom: '24px' }}>
-          {months.find(m => m.value === selectedMonth)?.label} {selectedYear}
-        </h2>
-        
+        <h1 className="dashboard-title">Sales Forecast</h1>
         <div className="controls-section">
           <div className="controls-group">
-            <div className="control-item">
-              <label>Select Month:</label>
-              <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))}>
-                {months.map((m) => (
-                  <option key={m.value} value={m.value}>{m.label}</option>
-                ))}
-              </select>
+            <div className="month-navigation">
+              <button 
+                className="nav-button prev" 
+                onClick={handlePreviousMonth}
+                aria-label="Previous month"
+              >
+                <span className="arrow"></span>
+              </button>
+              <span className="current-month">
+                {months[selectedMonth - 1]} {selectedYear}
+              </span>
+              <button 
+                className="nav-button next" 
+                onClick={handleNextMonth}
+                aria-label="Next month"
+              >
+                <span className="arrow"></span>
+              </button>
             </div>
-
-            <div className="control-item">
-              <label>Year:</label>
-              <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))}>
-                {[2024, 2025].map((year) => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="control-item">
-              <label>Monthly Goal:</label>
-              <span style={{ color: '#2c3d2f', fontWeight: 500 }}>${salesGoal.toLocaleString()}</span>
-            </div>
+            <button 
+              className="settings-button"
+              onClick={() => setShowSettings(true)}
+            >
+              Settings
+            </button>
           </div>
-
-          <button 
-            className="settings-button"
-            onClick={() => setShowSettings(true)}
-          >
-            Settings
-          </button>
         </div>
       </div>
 
@@ -704,7 +705,7 @@ const SalesChart = ({ onMonthlyGoalsUpdate }) => {
               <div className="stat-label">$ to Monthly Goal</div>
               <div className={`stat-value ${stats.dollarsToTarget > 0 ? 'under' : 'over'}`}>
                 {formatCurrency(Math.abs(stats.dollarsToTarget))}
-                {stats.dollarsToTarget > 0 ? ' under' : ' over'}
+                {stats.dollarsToTarget > 0 ? ' away' : ' above'}
               </div>
             </div>
 

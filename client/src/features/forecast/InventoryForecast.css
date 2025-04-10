@@ -164,4 +164,32 @@
   .threshold-alerts {
     grid-template-columns: 1fr;
   }
+}
+
+@media (max-width: 880px) {
+  .inventory-forecast {
+    padding: 8px;
+  }
+
+  .inventory-age-chart {
+    width: 100%;
+    height: auto;
+    font-size: 10px;
+    overflow-x: auto;
+  }
+
+  .stats-container {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+    margin-top: 16px;
+  }
+
+  .stat-box {
+    padding: 10px;
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    text-align: center;
+  }
 } 
