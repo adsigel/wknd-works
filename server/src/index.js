@@ -109,6 +109,10 @@ async function checkAndSeedTestData() {
 }
 
 const app = express();
+// Silently handle /ws requests to prevent log spam from dev server/WebSocket probes
+app.get('/ws', (req, res) => {
+  res.status(200).end();
+});
 const port = process.env.PORT || 5001;
 
 // Rate limiting

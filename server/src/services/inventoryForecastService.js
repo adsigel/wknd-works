@@ -619,9 +619,13 @@ export async function updateForecastConfig(config) {
  * @param {number} retailValue - The retail value to discount
  * @param {number} ageInDays - The age of the item in days
  * @param {Object} discountSettings - The discount settings to use
+ * @param {number} ignoreInventoryOlderThanDays - The age threshold for ignoring inventory
  * @returns {number} - The discounted value
  */
-function calculateDiscountedValue(retailValue, ageInDays, discountSettings) {
+function calculateDiscountedValue(retailValue, ageInDays, discountSettings, ignoreInventoryOlderThanDays) {
+  if (ignoreInventoryOlderThanDays && ageInDays > ignoreInventoryOlderThanDays) {
+    return 0;
+  }
   // Use provided discount settings or defaults
   const settings = discountSettings || {
     '0-30': 0,
@@ -663,6 +667,7 @@ async function getInventoryAgeDistribution() {
     '61-90': 10,
     '90+': 15
   };
+  const ignoreInventoryOlderThanDays = currentForecast?.configuration?.ignoreInventoryOlderThanDays || 180;
 
   // Get all inventory items with stock
   const inventoryItems = await Inventory.find({ currentStock: { $gt: 0 } });
@@ -693,7 +698,7 @@ async function getInventoryAgeDistribution() {
   const distribution = Object.entries(buckets).map(([range, items]) => {
     const retailValue = items.reduce((sum, item) => sum + item.retailValue, 0);
     const discountedValue = items.reduce((sum, item) => {
-      return sum + calculateDiscountedValue(item.retailValue, item.age, discountSettings);
+      return sum + calculateDiscountedValue(item.retailValue, item.age, discountSettings, ignoreInventoryOlderThanDays);
     }, 0);
 
     return {
