@@ -11,6 +11,15 @@ import InventoryForecast from '../models/InventoryForecast.js';
 
 const router = express.Router();
 
+const defaultConfig = {
+  discountSettings: { '0-30': 0, '31-60': 5, '61-90': 10, '90+': 15 },
+  salesDistribution: { '0-30': 25, '31-60': 25, '61-90': 25, '90+': 25 },
+  minimumWeeksBuffer: 6,
+  ignoreInventoryOlderThanDays: 180,
+  forecastPeriodWeeks: 12,
+  leadTimeWeeks: 2,
+};
+
 // Get current forecast
 router.get('/', async (req, res) => {
   try {
@@ -83,8 +92,37 @@ router.post('/refresh', async (req, res) => {
 // Update forecast configuration
 router.patch('/config', async (req, res) => {
   try {
-    const forecast = await updateForecastConfig(req.body);
+    const { discountSettings, salesDistribution, minimumWeeksBuffer, ignoreInventoryOlderThanDays, forecastPeriodWeeks, leadTimeWeeks } = req.body;
+    let forecast = await InventoryForecast.findOne();
+    if (!forecast) {
+      forecast = new InventoryForecast();
+    }
+    const existingConfig = forecast.configuration || {};
+    forecast.configuration = {
+      ...defaultConfig,
+      ...existingConfig,
+      discountSettings: discountSettings || existingConfig.discountSettings,
+      salesDistribution: salesDistribution || existingConfig.salesDistribution,
+      minimumWeeksBuffer: typeof minimumWeeksBuffer === 'number' ? minimumWeeksBuffer : existingConfig.minimumWeeksBuffer,
+      ignoreInventoryOlderThanDays: typeof ignoreInventoryOlderThanDays === 'number' ? ignoreInventoryOlderThanDays : existingConfig.ignoreInventoryOlderThanDays,
+      forecastPeriodWeeks: typeof forecastPeriodWeeks === 'number' ? forecastPeriodWeeks : existingConfig.forecastPeriodWeeks,
+      leadTimeWeeks: typeof leadTimeWeeks === 'number' ? leadTimeWeeks : existingConfig.leadTimeWeeks,
+    };
+    // Ensure all required config fields are present before save
+    const c = forecast.configuration;
+    if (typeof c.ignoreInventoryOlderThanDays !== 'number') c.ignoreInventoryOlderThanDays = 180;
+    if (typeof c.minimumWeeksBuffer !== 'number') c.minimumWeeksBuffer = 6;
+    if (typeof c.forecastPeriodWeeks !== 'number') c.forecastPeriodWeeks = 12;
+    if (typeof c.leadTimeWeeks !== 'number') c.leadTimeWeeks = 2;
+    if (!c.discountSettings) c.discountSettings = { '0-30': 0, '31-60': 5, '61-90': 10, '90+': 15 };
+    if (!c.salesDistribution) c.salesDistribution = { '0-30': 25, '31-60': 25, '61-90': 25, '90+': 25 };
+    await forecast.save();
     res.json(forecast);
+    try {
+      await updateInventoryForecast(new Date());
+    } catch (err) {
+      logError('Error in updateInventoryForecast:', err);
+    }
   } catch (error) {
     logError('Error updating forecast config', error);
     if (error.statusCode === 400) {
@@ -100,20 +138,16 @@ router.patch('/config', async (req, res) => {
 // Update discount settings
 router.post('/discount-settings', async (req, res) => {
   try {
-    const { discountSettings, salesDistribution } = req.body;
-    
+    const { discountSettings, salesDistribution, minimumWeeksBuffer, ignoreInventoryOlderThanDays } = req.body;
     // Validate discount settings
     if (!discountSettings || typeof discountSettings !== 'object') {
       return res.status(400).json({ error: 'Invalid discount settings format' });
     }
-
     // Validate sales distribution
     if (!salesDistribution || typeof salesDistribution !== 'object') {
       return res.status(400).json({ error: 'Invalid sales distribution format' });
     }
-
     const requiredRanges = ['0-30', '31-60', '61-90', '90+'];
-    
     // Validate discount settings ranges
     for (const range of requiredRanges) {
       const value = discountSettings[range];
@@ -123,7 +157,6 @@ router.post('/discount-settings', async (req, res) => {
         });
       }
     }
-
     // Validate sales distribution ranges
     for (const range of requiredRanges) {
       const value = salesDistribution[range];
@@ -133,7 +166,6 @@ router.post('/discount-settings', async (req, res) => {
         });
       }
     }
-
     // Validate sales distribution total equals 100%
     const totalDistribution = Object.values(salesDistribution).reduce((sum, value) => sum + value, 0);
     if (Math.abs(totalDistribution - 100) > 0.01) { // Allow for small floating point differences
@@ -141,24 +173,34 @@ router.post('/discount-settings', async (req, res) => {
         error: 'Sales distribution must total 100%'
       });
     }
-
-    // Find the current forecast
     let forecast = await InventoryForecast.findOne();
     if (!forecast) {
       forecast = new InventoryForecast();
     }
-
-    // Update settings
-    forecast.configuration.discountSettings = discountSettings;
-    forecast.configuration.salesDistribution = salesDistribution;
+    const existingConfig = forecast.configuration || {};
+    forecast.configuration = {
+      ...defaultConfig,
+      ...existingConfig,
+      discountSettings: discountSettings || existingConfig.discountSettings,
+      salesDistribution: salesDistribution || existingConfig.salesDistribution,
+      minimumWeeksBuffer: typeof minimumWeeksBuffer === 'number' ? minimumWeeksBuffer : existingConfig.minimumWeeksBuffer,
+      ignoreInventoryOlderThanDays: typeof ignoreInventoryOlderThanDays === 'number' ? ignoreInventoryOlderThanDays : existingConfig.ignoreInventoryOlderThanDays,
+    };
+    // Ensure all required config fields are present before save
+    const c = forecast.configuration;
+    if (typeof c.ignoreInventoryOlderThanDays !== 'number') c.ignoreInventoryOlderThanDays = 180;
+    if (typeof c.minimumWeeksBuffer !== 'number') c.minimumWeeksBuffer = 6;
+    if (typeof c.forecastPeriodWeeks !== 'number') c.forecastPeriodWeeks = 12;
+    if (typeof c.leadTimeWeeks !== 'number') c.leadTimeWeeks = 2;
+    if (!c.discountSettings) c.discountSettings = { '0-30': 0, '31-60': 5, '61-90': 10, '90+': 15 };
+    if (!c.salesDistribution) c.salesDistribution = { '0-30': 25, '31-60': 25, '61-90': 25, '90+': 25 };
     await forecast.save();
-
-    // Recalculate forecast with new settings
-    await updateInventoryForecast(new Date());
-
-    // Get updated forecast
-    forecast = await InventoryForecast.findOne();
     res.json(forecast);
+    try {
+      await updateInventoryForecast(new Date());
+    } catch (err) {
+      logError('Error in updateInventoryForecast:', err);
+    }
   } catch (error) {
     logError('Error updating discount settings:', error);
     res.status(500).json({ error: error.message });
@@ -168,31 +210,41 @@ router.post('/discount-settings', async (req, res) => {
 // Update restock settings
 router.post('/restock-settings', async (req, res) => {
   try {
-    const { minimumWeeksBuffer } = req.body;
-    
+    const { minimumWeeksBuffer, discountSettings, salesDistribution, ignoreInventoryOlderThanDays } = req.body;
     // Validate minimum weeks buffer
     if (typeof minimumWeeksBuffer !== 'number' || minimumWeeksBuffer < 1 || minimumWeeksBuffer > 52) {
       return res.status(400).json({ 
         error: 'Minimum weeks buffer must be a number between 1 and 52' 
       });
     }
-
-    // Find the current forecast
     let forecast = await InventoryForecast.findOne();
     if (!forecast) {
       forecast = new InventoryForecast();
     }
-
-    // Update settings
-    forecast.configuration.minimumWeeksBuffer = minimumWeeksBuffer;
+    const existingConfig = forecast.configuration || {};
+    forecast.configuration = {
+      ...defaultConfig,
+      ...existingConfig,
+      minimumWeeksBuffer: typeof minimumWeeksBuffer === 'number' ? minimumWeeksBuffer : existingConfig.minimumWeeksBuffer,
+      discountSettings: discountSettings || existingConfig.discountSettings,
+      salesDistribution: salesDistribution || existingConfig.salesDistribution,
+      ignoreInventoryOlderThanDays: typeof ignoreInventoryOlderThanDays === 'number' ? ignoreInventoryOlderThanDays : existingConfig.ignoreInventoryOlderThanDays,
+    };
+    // Ensure all required config fields are present before save
+    const c = forecast.configuration;
+    if (typeof c.ignoreInventoryOlderThanDays !== 'number') c.ignoreInventoryOlderThanDays = 180;
+    if (typeof c.minimumWeeksBuffer !== 'number') c.minimumWeeksBuffer = 6;
+    if (typeof c.forecastPeriodWeeks !== 'number') c.forecastPeriodWeeks = 12;
+    if (typeof c.leadTimeWeeks !== 'number') c.leadTimeWeeks = 2;
+    if (!c.discountSettings) c.discountSettings = { '0-30': 0, '31-60': 5, '61-90': 10, '90+': 15 };
+    if (!c.salesDistribution) c.salesDistribution = { '0-30': 25, '31-60': 25, '61-90': 25, '90+': 25 };
     await forecast.save();
-
-    // Recalculate forecast with new settings
-    await updateInventoryForecast(new Date());
-
-    // Get updated forecast
-    forecast = await InventoryForecast.findOne();
     res.json(forecast);
+    try {
+      await updateInventoryForecast(new Date());
+    } catch (err) {
+      logError('Error in updateInventoryForecast:', err);
+    }
   } catch (error) {
     logError('Error updating restock settings:', error);
     res.status(500).json({ error: error.message });

@@ -600,7 +600,7 @@ export async function updateForecastConfig(config) {
       throw new AppError('Lead time weeks must be at least 1', 400);
     }
     
-    const forecast = await getForecast();
+    const forecast = await InventoryForecast.findOne();
     
     if (forecastPeriodWeeks) forecast.forecastPeriodWeeks = forecastPeriodWeeks;
     if (minimumWeeksBuffer) forecast.minimumWeeksBuffer = minimumWeeksBuffer;

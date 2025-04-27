@@ -92,6 +92,29 @@ const RestockingTab = ({ minimumWeeksBuffer, onMinimumWeeksBufferChange }) => {
   );
 };
 
+const IgnoredInventoryTab = ({ ignoreInventoryOlderThanDays, onIgnoreInventoryChange }) => {
+  return (
+    <div className="ignored-inventory-tab">
+      <h3>Ignored Inventory</h3>
+      <p className="section-description">
+        Set a threshold (in days) to value all inventory older than this at $0 in discounted value calculations. Default is 180 days. Minimum is 91 days.
+      </p>
+      <div className="ignored-row">
+        <label>Ignore inventory older than:</label>
+        <div className="input-group">
+          <input
+            type="number"
+            min="91"
+            value={ignoreInventoryOlderThanDays}
+            onChange={e => onIgnoreInventoryChange(Math.max(91, parseInt(e.target.value) || 180))}
+          />
+          <span className="input-suffix">days</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const InventorySettings = ({ isOpen, onClose }) => {
   const [activeTab, setActiveTab] = useState('discounting');
   const [isSaving, setIsSaving] = useState(false);
@@ -110,6 +133,7 @@ const InventorySettings = ({ isOpen, onClose }) => {
     '90+': 25
   });
   const [minimumWeeksBuffer, setMinimumWeeksBuffer] = useState(6);
+  const [ignoreInventoryOlderThanDays, setIgnoreInventoryOlderThanDays] = useState(180);
 
   const totalSalesDistribution = Object.values(salesDistribution).reduce((sum, value) => sum + value, 0);
 
@@ -121,6 +145,7 @@ const InventorySettings = ({ isOpen, onClose }) => {
         setDiscountSettings(forecast.configuration.discountSettings);
         setSalesDistribution(forecast.configuration.salesDistribution);
         setMinimumWeeksBuffer(forecast.configuration.minimumWeeksBuffer || 6);
+        setIgnoreInventoryOlderThanDays(forecast.configuration.ignoreInventoryOlderThanDays || 180);
       }
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -155,37 +180,35 @@ const InventorySettings = ({ isOpen, onClose }) => {
     setHasUnsavedChanges(true);
   };
 
+  const handleIgnoreInventoryChange = (value) => {
+    setIgnoreInventoryOlderThanDays(value);
+    setHasUnsavedChanges(true);
+  };
+
   const handleSave = async () => {
     if (activeTab === 'discounting' && totalSalesDistribution !== 100) {
       setError('Sales distribution must total 100%');
       return;
     }
-
     setIsSaving(true);
     setError(null);
-
     try {
+      // Always send all config fields
+      const configPayload = {
+        discountSettings,
+        salesDistribution,
+        minimumWeeksBuffer,
+        ignoreInventoryOlderThanDays
+      };
       if (activeTab === 'discounting') {
-        await axios.post(`${API_BASE_URL}/api/inventory-forecast/discount-settings`, {
-          discountSettings,
-          salesDistribution
-        });
-      } else {
-        console.log('Saving minimum weeks buffer:', minimumWeeksBuffer);
-        const response = await axios.post(`${API_BASE_URL}/api/inventory-forecast/restock-settings`, {
-          minimumWeeksBuffer
-        });
-        const forecast = response.data;
-        console.log('Response from server:', forecast);
-        if (forecast?.configuration) {
-          console.log('Setting minimum weeks buffer to:', forecast.configuration.minimumWeeksBuffer);
-          setMinimumWeeksBuffer(forecast.configuration.minimumWeeksBuffer);
-        }
+        await axios.post(`${API_BASE_URL}/api/inventory-forecast/discount-settings`, configPayload);
+      } else if (activeTab === 'restocking') {
+        await axios.post(`${API_BASE_URL}/api/inventory-forecast/restock-settings`, configPayload);
+      } else if (activeTab === 'ignored') {
+        await axios.patch(`${API_BASE_URL}/api/inventory-forecast/config`, configPayload);
       }
       setHasUnsavedChanges(false);
-      // Close the modal after successful save
       onClose();
-      // Force a refresh of the forecast
       window.location.reload();
     } catch (error) {
       console.error('Error saving settings:', error);
@@ -226,6 +249,15 @@ const InventorySettings = ({ isOpen, onClose }) => {
     );
   };
 
+  const renderIgnoredInventoryTab = () => {
+    return (
+      <IgnoredInventoryTab
+        ignoreInventoryOlderThanDays={ignoreInventoryOlderThanDays}
+        onIgnoreInventoryChange={handleIgnoreInventoryChange}
+      />
+    );
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -246,11 +278,18 @@ const InventorySettings = ({ isOpen, onClose }) => {
           >
             Restocking
           </button>
+          <button
+            className={`tab ${activeTab === 'ignored' ? 'active' : ''}`}
+            onClick={() => setActiveTab('ignored')}
+          >
+            Ignored Inventory
+          </button>
         </div>
 
         <div className="tab-content">
           {activeTab === 'discounting' && renderDiscountingTab()}
           {activeTab === 'restocking' && renderRestockingTab()}
+          {activeTab === 'ignored' && renderIgnoredInventoryTab()}
         </div>
 
         <div className="modal-footer">
