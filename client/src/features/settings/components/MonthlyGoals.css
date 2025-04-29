@@ -1,14 +1,20 @@
 .monthly-goals {
-  padding: 1.5rem;
+  padding: 1rem;
   background: #fff;
   border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .year-selector {
-  margin-bottom: 1.5rem;
+  margin-bottom: 1rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  flex-shrink: 0;
 }
 
 .year-selector label {
@@ -26,13 +32,17 @@
 
 .monthly-goals-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 1rem;
+  overflow-y: auto;
+  padding-right: 0.5rem;
+  flex: 1;
+  min-height: 0;
 }
 
 .goal-item {
   background: #f8f9fa;
-  padding: 1rem;
+  padding: 0.75rem;
   border-radius: 6px;
   border: 1px solid #e9ecef;
   transition: all 0.2s ease;
@@ -47,6 +57,7 @@
   font-weight: 600;
   color: #2c3d2f;
   margin-bottom: 0.5rem;
+  font-size: 0.9rem;
 }
 
 .goal-input {
@@ -58,17 +69,17 @@
 
 .currency-symbol {
   position: absolute;
-  left: 0.75rem;
+  left: 0.5rem;
   color: #6c757d;
-  font-size: 1rem;
+  font-size: 0.9rem;
 }
 
 .goal-input input {
   width: 100%;
-  padding: 0.5rem 0.5rem 0.5rem 1.75rem;
+  padding: 0.5rem 0.5rem 0.5rem 1.5rem;
   border: 1px solid #ced4da;
   border-radius: 4px;
-  font-size: 1rem;
+  font-size: 0.9rem;
   color: #2c3d2f;
   transition: all 0.2s ease;
 }
@@ -90,4 +101,16 @@
   border-radius: 4px;
   margin: 1rem 0;
   border: 1px solid #dc3545;
+}
+
+@media (max-width: 768px) {
+  .monthly-goals-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 480px) {
+  .monthly-goals-grid {
+    grid-template-columns: 1fr;
+  }
 } 

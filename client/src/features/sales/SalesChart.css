@@ -32,14 +32,15 @@
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   width: 100%;
+  box-sizing: border-box;
 }
 
 .controls-group {
   display: flex;
   align-items: center;
-  justify-content: center;
   gap: 24px;
-  width: 100%;
+  justify-content: center;
+  flex: 1;
 }
 
 .control-item {
@@ -75,9 +76,15 @@
   box-shadow: 0 0 0 2px rgba(44, 61, 47, 0.1);
 }
 
+.month-navigation {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  justify-content: center;
+  min-width: 300px;
+}
+
 .settings-button {
-  position: absolute;
-  right: 24px;
   padding: 8px 16px;
   background-color: #2c3d2f;
   color: white;
@@ -159,15 +166,6 @@
 
 .stat-value.over {
   color: #8fab9e;
-}
-
-.month-navigation {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  background-color: white;
-  padding: 8px 16px;
-  border-radius: 8px;
 }
 
 .nav-button {
@@ -275,11 +273,10 @@
 
   .month-navigation {
     width: 100%;
-    justify-content: center;
+    min-width: unset;
   }
 
   .settings-button {
-    position: static;
     width: 100%;
   }
 

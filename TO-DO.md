@@ -6,6 +6,14 @@
 3. Remove thickness as a styling option for the Daily Sales chart series
 4. Update the copy on the stats box for "$" to "Monthly Goal"
 
+## Historical Data Display
+1. Fix stats calculation for completed months:
+   - Ensure `dollarsToTarget` reflects final month-end status
+   - Fix "Days Hit Target" to show correct total days and hit count
+   - Review "Day-to-Day Projection" calculation for historical months
+2. Consider adding visual indicator that we're viewing historical data
+3. Consider different stats presentation for completed vs current months
+
 ## Chart Styling
 1. Add hover effects to chart elements
 2. Improve color contrast for better accessibility
@@ -57,4 +65,21 @@
 - Consider adding a "Compare to Last Year" toggle
 - Add export functionality for forecast data
 - Consider adding a "Quick Actions" menu for common tasks
-- Add keyboard shortcuts for navigation between tabs 
+- Add keyboard shortcuts for navigation between tabs
+
+## High Priority
+- [ ] Fix inventory forecast not refreshing when monthly goals are updated
+- [ ] Consolidate all Settings into a single panel (Sales, Inventory, etc.)
+- [ ] Add "analyze past sales" button to weighted inventory sales distribution
+- [ ] Calculate initial sales distribution based on actual inventory age distribution instead of defaulting to 25% per bucket
+
+## Medium Priority
+- [ ] Add ability to view historical inventory snapshots
+- [ ] Implement bulk actions for inventory management
+- [ ] Add export functionality for reports
+- [ ] Improve historical month data display and stats calculations
+
+## Low Priority
+- [ ] Add dark mode support
+- [ ] Implement keyboard shortcuts
+- [ ] Add tooltips for complex features 

@@ -7,6 +7,7 @@ import Settings from '../settings/Settings';
 import { formatCurrency, formatNumber } from '../../utils/formatters';
 import '../settings/Settings.css';
 import './SalesChart.css';
+import Modal from '../../components/Modal';
 
 ChartJS.register(
   CategoryScale,
@@ -728,19 +729,21 @@ const SalesChart = ({ onMonthlyGoalsUpdate }) => {
       </div>
 
       {showSettings && (
-        <div className="settings-modal">
-          <div className="settings-content">
-            <Settings
-              onClose={handleSettingsClose}
-              chartSettings={chartSettings}
-              onChartSettingsChange={handleChartSettingsChange}
-              projectionSettings={projectionSettings}
-              onProjectionSettingsChange={handleProjectionSettingsChange}
-              selectedMonth={selectedMonth}
-              selectedYear={selectedYear}
-            />
-          </div>
-        </div>
+        <Modal
+          isOpen={showSettings}
+          onClose={handleSettingsClose}
+          title="Settings"
+        >
+          <Settings
+            onClose={handleSettingsClose}
+            chartSettings={chartSettings}
+            onChartSettingsChange={handleChartSettingsChange}
+            projectionSettings={projectionSettings}
+            onProjectionSettingsChange={handleProjectionSettingsChange}
+            selectedMonth={selectedMonth}
+            selectedYear={selectedYear}
+          />
+        </Modal>
       )}
     </div>
   );
