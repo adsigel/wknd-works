@@ -27,8 +27,15 @@ router.get('/', async (req, res) => {
     
     // Add the goal to the result
     result.salesGoal = goalDoc.goal;
-    
-    res.json(result);
+
+    // Always return arrays, even if undefined
+    res.json({
+      dates: Array.isArray(result.dates) ? result.dates : [],
+      dailyAmounts: Array.isArray(result.dailyAmounts) ? result.dailyAmounts : [],
+      dailySales: Array.isArray(result.dailySales) ? result.dailySales : [],
+      salesGoal: result.salesGoal || 0,
+      hasData: Array.isArray(result.dates) && result.dates.length > 0
+    });
   } catch (error) {
     console.error('Error fetching sales data:', error);
     res.status(500).json({ error: 'Failed to fetch sales data' });
