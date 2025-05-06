@@ -1,5 +1,13 @@
 # TO-DO List
 
+## Inventory Planning 2.0
+1. Get current cost of inventory (in cost)
+2. Optional: Adjust down for loss
+3. Estimated gross margin (set a high end and low end to keep it simple)
+4. Calculate revenue potential of inventory on hand
+5. Determine runway for inventory based on future sales goals and weeks' worth of buffer with gross margin ranges
+6. Calculate inventory budget based on shortfall between high/low end of inventory revenue potential and sales goal + buffer
+
 ## UI/UX Improvements
 1. Replace Month/Year picklist in the sales chart with forward/back arrows for simpler navigation
 2. Move the Settings button outside of the tabbed interface for accessibility from either tab

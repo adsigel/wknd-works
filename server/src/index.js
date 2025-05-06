@@ -8,12 +8,15 @@ import { connectDatabase } from './config/database.js';
 import salesRoutes from './routes/sales.js';
 import settingsRoutes from './routes/settings.js';
 import inventoryRoutes from './routes/inventory.js';
-import inventoryForecastRoutes from './routes/inventoryForecast.js';
+// import inventoryForecastRoutes from './routes/inventoryForecast.js'; // REMOVED
 import mongoose from 'mongoose';
 import { requestLogger } from './middleware/requestLogger.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { logInfo, logError } from './utils/loggingUtils.js';
 import Inventory from './models/Inventory.js';
+import inventoryScenariosRouter from './routes/inventoryScenario.js';
+import inventoryScenarioCalculationsRouter from './routes/inventoryScenarioCalculations.js';
+// import inventoryScenariosRoutes from './routes/inventoryScenarios.js'; // REMOVED if not used
 
 // ES Module compatibility
 const __filename = fileURLToPath(import.meta.url);
@@ -115,11 +118,18 @@ app.get('/ws', (req, res) => {
 });
 const port = process.env.PORT || 5001;
 
-// Rate limiting
+// General rate limiter for most routes
 const limiter = rateLimit({
   windowMs: process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000, // 15 minutes
   max: process.env.RATE_LIMIT_MAX_REQUESTS || 100 // limit each IP to 100 requests per windowMs
 });
+
+// Custom limiter for inventory sync route (e.g., 3 syncs per minute)
+// const syncLimiter = rateLimit({
+//   windowMs: 60 * 1000, // 1 minute
+//   max: 3, // allow 3 syncs per minute per IP
+//   message: 'Too many inventory sync requests from this IP, please try again later.'
+// });
 
 // Middleware
 app.use(cors());
@@ -144,8 +154,16 @@ app.use((req, res, next) => {
 console.log('Registering API routes...');
 app.use('/api/sales', salesRoutes);
 app.use('/api/settings', settingsRoutes);
-app.use('/api/inventory', inventoryRoutes);
-app.use('/api/inventory-forecast', inventoryForecastRoutes);
+app.use('/api/inventory', (req, res, next) => {
+  if (req.path === '/sync') {
+    return syncLimiter(req, res, next);
+  }
+  return next();
+}, inventoryRoutes);
+// app.use('/api/inventory-forecast', inventoryForecastRoutes); // REMOVED
+// app.use('/api/inventory-scenarios', inventoryScenariosRoutes); // REMOVED if not used
+app.use('/api/inventory-scenarios', inventoryScenariosRouter);
+app.use('/api/inventory-scenarios/calculations', inventoryScenarioCalculationsRouter);
 console.log('API routes registered');
 
 // Handle client-side routing

@@ -186,6 +186,6 @@ inventorySchema.statics.getTotalInventoryValue = async function() {
   };
 };
 
-const Inventory = mongoose.model('Inventory', inventorySchema);
+const Inventory = mongoose.model('Inventory', inventorySchema, 'inventories');
 
 export default Inventory; 

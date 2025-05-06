@@ -66,7 +66,6 @@ const inventoryForecastSchema = new mongoose.Schema({
     },
     ignoreInventoryOlderThanDays: {
       type: Number,
-      required: true,
       default: 180,
       min: 91
     }
