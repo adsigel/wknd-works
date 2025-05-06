@@ -54,7 +54,7 @@ const defaultProjectionSettings = {
   'Sunday': 20
 };
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+const API_BASE_URL = process.env.REACT_APP_API_URL || '';
 
 const SalesChart = ({ onMonthlyGoalsUpdate }) => {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);

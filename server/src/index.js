@@ -124,12 +124,12 @@ const limiter = rateLimit({
   max: process.env.RATE_LIMIT_MAX_REQUESTS || 100 // limit each IP to 100 requests per windowMs
 });
 
-// Custom limiter for inventory sync route (e.g., 3 syncs per minute)
-// const syncLimiter = rateLimit({
-//   windowMs: 60 * 1000, // 1 minute
-//   max: 3, // allow 3 syncs per minute per IP
-//   message: 'Too many inventory sync requests from this IP, please try again later.'
-// });
+Custom limiter for inventory sync route (e.g., 3 syncs per minute)
+const syncLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 3, // allow 3 syncs per minute per IP
+  message: 'Too many inventory sync requests from this IP, please try again later.'
+});
 
 // Middleware
 app.use(cors());

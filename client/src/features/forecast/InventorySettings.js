@@ -3,7 +3,7 @@ import axios from 'axios';
 import Modal from '../../components/Modal';
 import './InventorySettings.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001';
+const API_BASE_URL = process.env.REACT_APP_API_URL || '';
 
 const DiscountingTab = ({ 
   discountSettings, 
