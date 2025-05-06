@@ -17,8 +17,12 @@ import {
 import InventoryForecast from '../models/InventoryForecast.js';
 import Inventory from '../models/Inventory.js';
 import SalesGoal from '../models/SalesGoal.js';
+import path from 'path';
+import express from 'express';
 
 const DAYS_IN_WEEK = 7;
+const workspaceDir = process.cwd();
+const app = express();
 
 /**
  * Calculate daily sales distribution based on monthly goal
@@ -717,4 +721,7 @@ async function getInventoryAgeDistribution() {
     ...bucket,
     percentage: totalCount > 0 ? (bucket.count / totalCount) * 100 : 0
   }));
-} 
+}
+
+const clientBuildPath = path.join(workspaceDir, 'client', 'build');
+app.use(express.static(clientBuildPath)); 
