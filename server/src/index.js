@@ -124,17 +124,17 @@ const limiter = rateLimit({
   max: process.env.RATE_LIMIT_MAX_REQUESTS || 100 // limit each IP to 100 requests per windowMs
 });
 
-Custom limiter for inventory sync route (e.g., 3 syncs per minute)
-const syncLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 3, // allow 3 syncs per minute per IP
-  message: 'Too many inventory sync requests from this IP, please try again later.'
-});
+// Custom limiter for inventory sync route (e.g., 3 syncs per minute)
+// const syncLimiter = rateLimit({
+//   windowMs: 60 * 1000, // 1 minute
+//   max: 3, // allow 3 syncs per minute per IP
+//   message: 'Too many inventory sync requests from this IP, please try again later.'
+// });
 
 // Middleware
 app.use(cors());
 app.use(express.json());
-app.use(limiter);
+// app.use(limiter);
 
 // Add request logging middleware
 app.use(requestLogger);
@@ -154,12 +154,13 @@ app.use((req, res, next) => {
 console.log('Registering API routes...');
 app.use('/api/sales', salesRoutes);
 app.use('/api/settings', settingsRoutes);
-app.use('/api/inventory', (req, res, next) => {
-  if (req.path === '/sync') {
-    return syncLimiter(req, res, next);
-  }
-  return next();
-}, inventoryRoutes);
+app.use('/api/inventory', inventoryRoutes);
+// app.use('/api/inventory', (req, res, next) => {
+//   if (req.path === '/sync') {
+//     return syncLimiter(req, res, next);
+//   }
+//   return next();
+// }, inventoryRoutes);
 // app.use('/api/inventory-forecast', inventoryForecastRoutes); // REMOVED
 // app.use('/api/inventory-scenarios', inventoryScenariosRoutes); // REMOVED if not used
 app.use('/api/inventory-scenarios', inventoryScenariosRouter);

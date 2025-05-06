@@ -21,8 +21,6 @@ import path from 'path';
 import express from 'express';
 
 const DAYS_IN_WEEK = 7;
-const workspaceDir = process.cwd();
-const app = express();
 
 /**
  * Calculate daily sales distribution based on monthly goal
