@@ -19,6 +19,7 @@ import Inventory from '../models/Inventory.js';
 import SalesGoal from '../models/SalesGoal.js';
 import path from 'path';
 import express from 'express';
+import Settings from '../models/Settings.js';
 
 const DAYS_IN_WEEK = 7;
 
@@ -369,6 +370,10 @@ export async function updateInventoryForecast(startDate, forecastPeriodWeeks = 1
 
   while (retryCount < MAX_RETRIES) {
     try {
+      // Fetch the noCostInventoryHandling setting
+      const settings = await Settings.findOne();
+      const noCostInventoryHandling = settings?.noCostInventoryHandling || 'exclude';
+
       // Get all inventory items
       const inventoryItems = await Inventory.find();
       
@@ -385,15 +390,34 @@ export async function updateInventoryForecast(startDate, forecastPeriodWeeks = 1
 
       // Filter and transform inventory items
       const validInventoryItems = inventoryItems
-        .map(item => ({
-          ...item.toObject(),
-          currentStock: Number(item.currentStock) || 0,
-          retailPrice: Number(item.retailPrice) || 0,
-          costPrice: Number(item.costPrice) || 0,
-          discountFactor: 1, // Default discount factor
-          lastReceivedDate: item.lastReceivedDate || item._id.getTimestamp()
-        }))
-        .filter(item => item.currentStock > 0 && item.retailPrice > 0);
+        .map(item => {
+          const obj = {
+            ...item.toObject(),
+            currentStock: Number(item.currentStock) || 0,
+            retailPrice: Number(item.retailPrice) || 0,
+            costPrice: Number(item.costPrice) || 0,
+            discountFactor: 1, // Default discount factor
+            lastReceivedDate: item.lastReceivedDate || item._id.getTimestamp()
+          };
+          // Dynamically set costPrice if toggle is 'assumeMargin' and costPrice is 0
+          if (
+            noCostInventoryHandling === 'assumeMargin' &&
+            (!obj.costPrice || obj.costPrice === 0)
+          ) {
+            obj.costPrice = obj.retailPrice * 0.5;
+            obj.costSource = 'assumed';
+          }
+          return obj;
+        })
+        .filter(item => {
+          if (item.currentStock <= 0 || item.retailPrice <= 0) return false;
+          if (noCostInventoryHandling === 'exclude') {
+            // Exclude items with no costPrice or costPrice = 0
+            return item.costPrice > 0;
+          }
+          // If 'assumeMargin', include all items
+          return true;
+        });
 
       logDebug('Valid inventory items:', validInventoryItems);
 

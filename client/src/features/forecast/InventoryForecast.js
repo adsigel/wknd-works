@@ -1,10 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import InventoryScenarios from './InventoryScenarios';
 import './InventoryForecast.css';
+
+const NO_COST_OPTIONS = [
+  { value: 'exclude', label: 'Exclude From Inventory' },
+  { value: 'assumeMargin', label: 'Assume 50% Margin' },
+];
 
 export default function InventoryForecast() {
   const [syncing, setSyncing] = useState(false);
   const [toast, setToast] = useState(null);
+  const [noCostInventoryHandling, setNoCostInventoryHandling] = useState('exclude');
+  const [loading, setLoading] = useState(false);
 
   const handleSyncInventory = async () => {
     setSyncing(true);
@@ -20,7 +27,7 @@ export default function InventoryForecast() {
       } else {
         setToast({
           type: 'error',
-          message: `Sync failed: ${data.error || 'Unknown error'}`
+          message: `Sync failed: ${data.error || data.details || 'Unknown error'}`
         });
       }
     } catch (err) {
@@ -28,8 +35,43 @@ export default function InventoryForecast() {
         type: 'error',
         message: `Sync failed: ${err.message}`
       });
+    } finally {
+      setSyncing(false);
     }
-    setSyncing(false);
+  };
+
+  // Fetch current setting on mount
+  useEffect(() => {
+    async function fetchSetting() {
+      setLoading(true);
+      try {
+        const res = await fetch('/api/settings');
+        const data = await res.json();
+        setNoCostInventoryHandling(data.noCostInventoryHandling || 'exclude');
+      } catch (e) {
+        // handle error
+      }
+      setLoading(false);
+    }
+    fetchSetting();
+  }, []);
+
+  // Handler for changing the picklist
+  const handleNoCostChange = async (e) => {
+    const value = e.target.value;
+    setNoCostInventoryHandling(value);
+    
+    // Save the setting in the background
+    fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ noCostInventoryHandling: value }),
+    }).catch(e => {
+      setToast({
+        type: 'error',
+        message: `Failed to save setting: ${e.message}`
+      });
+    });
   };
 
   return (
@@ -67,7 +109,24 @@ export default function InventoryForecast() {
           {toast.message}
         </div>
       )}
-      <InventoryScenarios />
+      <InventoryScenarios noCostInventoryHandling={noCostInventoryHandling} />
+      
+      <div style={{ marginTop: 32, padding: 16, borderTop: '1px solid #eee' }}>
+        <label htmlFor="no-cost-inventory" style={{ fontWeight: 600, marginRight: 12 }}>
+          No Cost Inventory:
+        </label>
+        <select
+          id="no-cost-inventory"
+          value={noCostInventoryHandling}
+          onChange={handleNoCostChange}
+          disabled={syncing}
+          style={{ padding: 8, minWidth: 200 }}
+        >
+          {NO_COST_OPTIONS.map(opt => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+      </div>
     </div>
   );
 } 

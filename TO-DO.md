@@ -1,5 +1,10 @@
 # TO-DO List
 
+## Issues Observed
+1. Analyzing past sales data for sales distribution does not seem to always use 90 days. Maybe it cuts off at the beginning of the current month?
+2. Should be able to see inventory values updated as soon as the checkbox is checked or unchecked without having to click Save.
+3. Optimize inventory refresh to be Active items only (or something).
+
 ## Inventory Planning 2.0
 1. Get current cost of inventory (in cost)
 2. Optional: Adjust down for loss

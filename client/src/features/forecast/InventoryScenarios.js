@@ -28,7 +28,7 @@ function formatNumber(value, decimals = 2) {
     : '';
 }
 
-export default function InventoryScenarios() {
+export default function InventoryScenarios({ noCostInventoryHandling }) {
   const [scenarios, setScenarios] = useState([]);
   const [editedScenarios, setEditedScenarios] = useState({});
   const [calculations, setCalculations] = useState([]);
@@ -64,7 +64,7 @@ export default function InventoryScenarios() {
         setError('Failed to load scenarios');
         setLoading(false);
       });
-  }, []);
+  }, [noCostInventoryHandling]);
 
   // Handle field changes
   const handleChange = (scenarioType, field, value) => {

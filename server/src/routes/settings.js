@@ -41,6 +41,7 @@ router.post('/', async (req, res) => {
     if (req.body.currency) settings.currency = req.body.currency;
     if (req.body.timezone) settings.timezone = req.body.timezone;
     if (req.body.refreshInterval) settings.refreshInterval = req.body.refreshInterval;
+    if (req.body.noCostInventoryHandling) settings.noCostInventoryHandling = req.body.noCostInventoryHandling;
 
     console.log('Saving updated settings:', JSON.stringify(settings, null, 2));
     await settings.save();

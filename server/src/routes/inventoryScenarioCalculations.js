@@ -2,6 +2,7 @@ import express from 'express';
 import InventoryScenario from '../models/InventoryScenario.js';
 import Inventory from '../models/Inventory.js';
 import SalesGoal from '../models/SalesGoal.js';
+import Settings from '../models/Settings.js';
 
 const router = express.Router();
 
@@ -24,14 +25,45 @@ router.get('/', async (req, res) => {
     // 1. Get all scenarios
     const scenarios = await InventoryScenario.find();
 
-    // 2. Get total inventory cost value (sum of costPrice * currentStock for all items)
-    const inventoryItems = await Inventory.find();
+    // 2. Get the noCostInventoryHandling setting
+    const settings = await Settings.findOne();
+    const noCostInventoryHandling = settings?.noCostInventoryHandling || 'exclude';
+
+    // 3. Get inventory items
+    let inventoryItems = await Inventory.find();
+
+    // 4. Filter or transform inventory items based on the setting
+    if (noCostInventoryHandling === 'exclude') {
+      inventoryItems = inventoryItems.filter(
+        item => item.costSource === 'shopify' && item.shopifyCost && item.shopifyCost > 0
+      );
+    } else if (noCostInventoryHandling === 'assumeMargin') {
+      // For items with no cost, dynamically calculate cost as 50% of retail
+      inventoryItems = inventoryItems.map(item => {
+        if (
+          (!item.shopifyCost || item.shopifyCost === 0) &&
+          (!item.costPrice || item.costPrice === 0)
+        ) {
+          return {
+            ...item.toObject(),
+            costPrice: item.retailPrice * 0.5,
+            costSource: 'assumed'
+          };
+        }
+        return item.toObject();
+      });
+    } else {
+      // Default: convert to plain objects for consistency
+      inventoryItems = inventoryItems.map(item => item.toObject());
+    }
+
+    // 5. Get total inventory cost value (sum of costPrice * currentStock for all items)
     const totalInventoryCost = inventoryItems.reduce(
       (sum, item) => sum + (item.costPrice * item.currentStock),
       0
     );
 
-    // 3. Get next 12 weeks' sales goals
+    // 6. Get next 12 weeks' sales goals
     const now = new Date();
     const salesGoals = await SalesGoal.find({
       date: { $gte: new Date(now.getFullYear(), now.getMonth(), 1) }
@@ -49,7 +81,7 @@ router.get('/', async (req, res) => {
     const total12WeekSalesGoal = weeklyGoals.reduce((sum, w) => sum + w, 0);
     const avgWeeklySalesGoal = weeklyGoals.length > 0 ? total12WeekSalesGoal / weeklyGoals.length : 0;
 
-    // 4. Calculate for each scenario
+    // 7. Calculate for each scenario
     const results = scenarios.map(scenario => {
       const adjustedInventoryValue = applyHaircut(
         totalInventoryCost,

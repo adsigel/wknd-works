@@ -1,6 +1,7 @@
 import axios from 'axios';
 import Inventory from '../models/Inventory.js';
 import { logError, logInfo, logDebug } from '../utils/loggingUtils.js';
+import Settings from '../models/Settings.js';
 
 /**
  * Shopify API Service
@@ -161,6 +162,7 @@ export default class ShopifyService {
 
           const variants = product.variants.edges.map(variantEdge => {
             const variant = variantEdge.node;
+            logInfo(`Product: ${product.title}, Variant: ${variant.title}, Price: ${variant.price}`);
             const inventoryItemId = variant.inventoryItem?.legacyResourceId || variant.inventoryItem?.id?.split('/').pop();
             
             const inventoryLevel = inventoryLevels.find(
@@ -345,70 +347,100 @@ export default class ShopifyService {
    */
   async syncInventory() {
     try {
+      logInfo('Starting inventory sync...');
+      
+      // Get all products
+      logInfo('Fetching products from Shopify...');
       const products = await this.getProducts();
+      logInfo(`Fetched ${products.length} products`);
+
+      // Get settings for no-cost handling
+      const settings = await Settings.findOne() || {};
+      const noCostInventoryHandling = settings.noCostInventoryHandling || 'exclude';
+      logInfo(`Using no-cost inventory handling: ${noCostInventoryHandling}`);
+
       let created = 0;
       let updated = 0;
       let skipped = 0;
       let errors = 0;
+      let totalVariants = 0;
 
+      // Process each product
       for (const product of products) {
-        for (const variant of product.variants) {
-          try {
-            if (variant.inventory_quantity <= 0) {
-              skipped++;
-              continue;
-            }
+        try {
+          logInfo(`Processing product: ${product.title} (${product.id})`);
+          
+          for (const variant of product.variants) {
+            totalVariants++;
+            try {
+              // 1. Get retail price (no validation needed since price differences are intentional)
+              const retailPrice = Number(variant.price);
 
-            const inventoryData = {
-              productId: `${product.id}-${variant.id}`,
-              shopifyProductId: product.id,
-              variant: {
-                id: variant.id,
-                title: variant.title,
-                sku: variant.sku
-              },
-              name: product.title + (variant.title !== 'Default Title' ? ` - ${variant.title}` : ''),
-              category: product.product_type || 'Uncategorized',
-              currentStock: variant.inventory_quantity,
-              retailPrice: parseFloat(variant.price),
-              costPrice: parseFloat(variant.price) * 0.5, // Default to 50% margin if cost not available
-              discountFactor: variant.compare_at_price ? 
-                parseFloat(variant.price) / parseFloat(variant.compare_at_price) : 
-                1.0,
-              shrinkageFactor: 0.98, // Default 2% shrinkage
-              lastUpdated: new Date(),
-              lastReceivedDate: new Date(variant.created_at), // Use variant creation date as initial received date
-              averageDailySales: 0 // Will be calculated separately
-            };
+              // 2. Get cost from Shopify
+              let cost = null;
+              try {
+                cost = await this.getInventoryItemCost(variant.inventory_item_id);
+                logInfo(`[Cost Data] Product: ${product.title}, Variant: ${variant.title}, Cost: ${cost}`);
+              } catch (costError) {
+                logError(`Failed to fetch cost for inventory item ${variant.inventory_item_id}:`, costError);
+              }
 
-            const existingItem = await Inventory.findOne({ 
-              shopifyProductId: product.id,
-              'variant.id': variant.id 
-            });
+              // 3. Calculate costPrice based on settings
+              let costPrice = 0;
+              if (cost !== null) {
+                costPrice = cost;
+              } else if (noCostInventoryHandling === 'assumeMargin') {
+                costPrice = retailPrice * 0.5;
+              }
 
-            if (existingItem) {
-              await Inventory.updateOne(
-                { _id: existingItem._id },
+              // 4. Prepare inventory data
+              const inventoryData = {
+                shopifyProductId: product.id,
+                variant: {
+                  id: variant.id,
+                  title: variant.title,
+                  sku: variant.sku
+                },
+                name: `${product.title} - ${variant.title}`,
+                category: product.product_type || 'Uncategorized',
+                currentStock: variant.inventory_quantity,
+                retailPrice: retailPrice,
+                costPrice: costPrice,
+                shopifyCost: cost,  // Store the raw cost from Shopify
+                costSource: cost !== null ? 'shopify' : 'assumed',
+                lastUpdated: new Date(),
+                lastReceivedDate: new Date()
+              };
+
+              // 5. Update or create inventory item using a compound unique index
+              const result = await Inventory.findOneAndUpdate(
                 { 
-                  $set: {
-                    ...inventoryData,
-                    lastReceivedDate: existingItem.lastReceivedDate // Preserve existing lastReceivedDate
-                  }
+                  shopifyProductId: product.id,
+                  'variant.id': variant.id 
+                },
+                { $set: inventoryData },
+                { 
+                  upsert: true, 
+                  new: true,
+                  runValidators: true
                 }
               );
-              updated++;
-            } else {
-              await Inventory.create(inventoryData);
-              created++;
+
+              if (result.isNew) {
+                created++;
+                logInfo(`Created new inventory item: ${variant.sku}`);
+              } else {
+                updated++;
+                logInfo(`Updated inventory item: ${variant.sku}`);
+              }
+            } catch (variantError) {
+              logError(`Error processing variant ${variant.id}:`, variantError);
+              errors++;
             }
-          } catch (error) {
-            logError('Error syncing variant:', {
-              productId: product.id,
-              variantId: variant.id,
-              error: error.message
-            });
-            errors++;
           }
+        } catch (productError) {
+          logError(`Error processing product ${product.id}:`, productError);
+          errors++;
         }
       }
 
@@ -417,14 +449,35 @@ export default class ShopifyService {
         updated,
         skipped,
         errors,
-        total: created + updated + skipped
+        total: totalVariants
       };
 
-      logInfo('Inventory sync completed:', summary);
+      logInfo('Inventory sync completed', summary);
       return summary;
     } catch (error) {
-      logError('Failed to sync inventory:', error);
+      logError('Error in syncInventory:', error);
       throw error;
+    }
+  }
+
+  async getInventoryItemCost(inventoryItemId) {
+    try {
+      const response = await this.client.get(`/admin/api/2024-01/inventory_items/${inventoryItemId}.json`);
+      const cost = response.data?.inventory_item?.cost;
+      
+      // Validate cost is a reasonable number
+      if (cost !== null && cost !== undefined) {
+        const numCost = Number(cost);
+        if (isNaN(numCost) || numCost < 0) {
+          logError(`Invalid cost value for inventory item ${inventoryItemId}: ${cost}`);
+          return null;
+        }
+        return numCost;
+      }
+      return null;
+    } catch (error) {
+      logError(`Failed to fetch cost for inventory item ${inventoryItemId}:`, error);
+      return null;
     }
   }
 } 

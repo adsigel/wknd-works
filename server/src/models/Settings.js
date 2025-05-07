@@ -57,6 +57,11 @@ const settingsSchema = new mongoose.Schema({
       'Saturday': 5,
       'Sunday': 25
     }
+  },
+  noCostInventoryHandling: {
+    type: String,
+    enum: ['exclude', 'assumeMargin'],
+    default: 'exclude'
   }
 }, {
   timestamps: true

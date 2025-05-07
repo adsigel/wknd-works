@@ -1,14 +1,10 @@
 import mongoose from 'mongoose';
 
 const inventorySchema = new mongoose.Schema({
-  productId: {
+  shopifyProductId: {
     type: String,
     required: true,
     index: true
-  },
-  shopifyProductId: {
-    type: String,
-    required: true
   },
   variant: {
     id: {
@@ -24,12 +20,11 @@ const inventorySchema = new mongoose.Schema({
   },
   category: {
     type: String,
-    required: true
+    default: 'Uncategorized'
   },
   currentStock: {
     type: Number,
-    required: true,
-    min: 0
+    default: 0
   },
   retailPrice: {
     type: Number,
@@ -68,12 +63,10 @@ const inventorySchema = new mongoose.Schema({
   },
   lastUpdated: {
     type: Date,
-    required: true,
     default: Date.now
   },
   lastReceivedDate: {
     type: Date,
-    required: true,
     default: Date.now
   },
   historicalMovement: [{
@@ -95,10 +88,19 @@ const inventorySchema = new mongoose.Schema({
     default: 0
   },
   lastRecommendationDate: Date,
-  recommendedPurchaseQuantity: Number
+  recommendedPurchaseQuantity: Number,
+  shopifyCost: {
+    type: Number,
+    default: null
+  },
+  costSource: {
+    type: String,
+    enum: ['shopify', 'assumed'],
+    default: 'assumed'
+  }
 });
 
-// Add compound index for product and variant
+// Add compound unique index
 inventorySchema.index({ shopifyProductId: 1, 'variant.id': 1 }, { unique: true });
 
 // Add indexes for common queries
